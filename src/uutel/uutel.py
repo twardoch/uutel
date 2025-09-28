@@ -5,7 +5,6 @@ Created by Adam Twardoch
 """
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import logging
 
@@ -23,16 +22,16 @@ logger = logging.getLogger(__name__)
 class Config:
     """Configuration settings for uutel."""
     name: str
-    value: Union[str, int, float]
-    options: Optional[Dict[str, Any]] = None
+    value: str | int | float
+    options: dict[str, Any] | None = None
 
 
 def process_data(
-    data: List[Any],
-    config: Optional[Config] = None,
+    data: list[Any],
+    config: Config | None = None,
     *,
     debug: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process the input data according to configuration.
     
     Args:
@@ -54,7 +53,7 @@ def process_data(
         raise ValueError("Input data cannot be empty")
         
     # TODO: Implement data processing logic
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     return result
 
 

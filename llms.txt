@@ -1294,7 +1294,7 @@ unfixable = [
 
 ]
 # Configure extend-exclude to ignore specific directories
-extend-exclude = [".git", ".venv", "venv", "dist", "build"]
+exclude = [".git", ".venv", "venv", "dist", "build"]
 
 # isort configuration within Ruff
 [tool.ruff.lint.isort]
@@ -1319,19 +1319,14 @@ ban-relative-imports = 'all' # Ban all relative imports for consistency
 # File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/src/uutel/uutel.py
 # Language: python
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
 import logging
+from dataclasses import dataclass
+from typing import Any
 
 class Config:
     """Configuration settings for uutel."""
 
-def process_data((
-    data: list[Any],
-    config: Config | None = None,
-    *,
-    debug: bool = False
-)) -> dict[str, Any]:
+def process_data((data: list[Any], config: Config | None = None, *, debug: bool = False)) -> dict[str, Any]:
     """Process the input data according to configuration."""
 
 def main(()) -> None:

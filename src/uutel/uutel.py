@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""uutel:
+# this_file: src/uutel/uutel.py
+"""UUTEL core functionality.
 
 Created by Adam Twardoch
 """
@@ -8,10 +9,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-__version__ = "0.1.0"
-
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +25,9 @@ class Config:
     options: dict[str, Any] | None = None
 
 
-def process_data(data: list[Any], config: Config | None = None, *, debug: bool = False) -> dict[str, Any]:
+def process_data(
+    data: list[Any], config: Config | None = None, *, debug: bool = False
+) -> dict[str, Any]:
     """Process the input data according to configuration.
 
     Args:

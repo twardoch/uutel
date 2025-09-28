@@ -1,54 +1,58 @@
 # this_file: pyproject.toml
 #==============================================================================
 # UUTEL PACKAGE CONFIGURATION
-# This pyproject.toml defines the package metadata, dependencies, build system,
-# and development environment for the uutel package.
+# Universal AI Provider for LiteLLM - extends LiteLLM with Claude Code, Gemini CLI,
+# Google Cloud Code, and OpenAI Codex providers
 #==============================================================================
 
 #------------------------------------------------------------------------------
 # PROJECT METADATA
-# Core package information used by PyPI and package managers.
 #------------------------------------------------------------------------------
 [project]
-name = 'uutel' # Package name on PyPI
-description = '' # Short description
-readme = 'README.md' # Path to README file
-requires-python = '>=3.10' # Minimum Python version
+name = "uutel"
+description = "Universal AI Provider for LiteLLM - extends LiteLLM with custom providers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Adam Twardoch", email = "adam+github@twardoch.com"},
+]
 keywords = [
-] # Keywords for PyPI search
-dynamic = ["version"] # Fields set dynamically at build time
+    "ai", "llm", "litellm", "claude", "gemini", "codex", "openai",
+    "providers", "universal", "anthropic", "google"
+]
+dynamic = ["version"]
 
-# PyPI classifiers for package categorization
 classifiers = [
-    'Development Status :: 4 - Beta', # Package maturity level
-    'Programming Language :: Python',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
-    'Programming Language :: Python :: Implementation :: CPython',
-    'Programming Language :: Python :: Implementation :: PyPy',
-    'Operating System :: OS Independent',
-    'License :: OSI Approved :: MIT License',
-    'Intended Audience :: Developers',
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+# Core dependencies for UUTEL functionality
 dependencies = [
+    "litellm>=1.70.0",
+    "httpx>=0.25.0",
+    "aiohttp>=3.8.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "loguru>=0.7.0",
 ]
-
-# Author information
-[[project.authors]]
-name = 'Adam Twardoch'
-email = 'adam+github@twardoch.com'
-
-# License information
-[project.license]
-text = 'MIT'
 
 # Project URLs
 [project.urls]
-Documentation = 'https://github.com/twardoch/uutel#readme'
-Issues = 'https://github.com/twardoch/uutel/issues'
-Source = 'https://github.com/twardoch/uutel'
+Documentation = "https://github.com/twardoch/uutel#readme"
+Issues = "https://github.com/twardoch/uutel/issues"
+Source = "https://github.com/twardoch/uutel"
+Homepage = "https://github.com/twardoch/uutel"
 
 #------------------------------------------------------------------------------
 # OPTIONAL DEPENDENCIES
@@ -56,36 +60,45 @@ Source = 'https://github.com/twardoch/uutel'
 #------------------------------------------------------------------------------
 [project.optional-dependencies]
 
+# Authentication dependencies
+auth = [
+    "google-auth>=2.15.0",
+    "google-auth-oauthlib>=1.0.0",
+    "google-cloud-core>=2.0.0",
+]
+
+# CLI dependencies
+cli = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
 # Development tools
 dev = [
-    'pre-commit>=4.1.0', # Pre-commit hook manager - Keep pre-commit as is, update if newer pre-commit version is required
-    'ruff>=0.9.7', # Linting and formatting - Keep ruff as is, update if newer ruff version is required
-    'mypy>=1.15.0', # Type checking - Keep mypy as is, update if newer mypy version is required
-    'absolufy-imports>=0.3.1', # Convert relative imports to absolute - Keep absolufy-imports as is, update if newer absolufy-imports version is required
-    'pyupgrade>=3.19.1', # Upgrade Python syntax - Keep pyupgrade as is, update if newer pyupgrade version is required
-    'isort>=6.0.1', # Sort imports - Keep isort as is, update if newer isort version is required
+    "ruff>=0.9.7",
+    "mypy>=1.15.0",
+    "pre-commit>=4.1.0",
 ]
 
-# Testing tools and frameworks
+# Testing framework
 test = [
-    'pytest>=8.3.4', # Testing framework - Keep pytest as is, update if newer pytest version is required
-    'pytest-cov>=6.0.0', # Coverage plugin for pytest - Keep pytest-cov as is, update if newer pytest-cov version is required
-    'pytest-xdist>=3.6.1', # Parallel test execution - Keep pytest-xdist as is, update if newer pytest-xdist version is required
-    'pytest-benchmark[histogram]>=5.1.0', # Benchmarking plugin - Keep pytest-benchmark as is, update if newer pytest-benchmark version is required
-    'pytest-asyncio>=0.25.3', # Async test support - Keep pytest-asyncio as is, update if newer pytest-asyncio version is required
-    'coverage[toml]>=7.6.12',
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.6.1",
+    "pytest-asyncio>=0.25.3",
+    "pytest-mock>=3.15.0",
+    "coverage[toml]>=7.6.12",
 ]
 
+# Documentation
 docs = [
     "sphinx>=7.2.6",
     "sphinx-rtd-theme>=2.0.0",
-    "sphinx-autodoc-typehints>=2.0.0",
-    "myst-parser>=3.0.0", # Markdown support in Sphinx
+    "myst-parser>=3.0.0",
 ]
 
-# All optional dependencies combined
-all = [
-]
+# All optional dependencies
+all = ["uutel[auth,cli]"]
 
 #------------------------------------------------------------------------------
 # COMMAND-LINE SCRIPTS

@@ -4,6 +4,8 @@
 
 **UUTEL** is a Python package that extends LiteLLM's provider ecosystem by implementing custom providers for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex. It enables unified LLM inferencing through LiteLLM's standardized interface while leveraging the unique capabilities of each AI provider.
 
+> IMPORTANT: Whoever is modifying the code of this package, DO NOT ADD ANY "enterprise" features, verification, validation etc.. Keep focused on the main objective of the project, but develop documentation (Jekyll site in `docs` folder), develop `tests`, develop `examples`. And make the code robust, and test it with unit tests but also with realistic `examples`.  
+
 ## Technical Architecture
 
 ### Core Design Principles

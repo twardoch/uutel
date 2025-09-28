@@ -1,31 +1,21 @@
-# this_file: src/uutel/__init__.py
-"""UUTEL: Universal AI Provider for LiteLLM
-
-This package extends LiteLLM's provider ecosystem by implementing custom providers
-for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex.
-"""
+# this_file: src/uutel/core/__init__.py
+"""UUTEL core module - base classes and common utilities."""
 
 from __future__ import annotations
 
-try:
-    from uutel._version import __version__
-except ImportError:
-    # Fallback version when running from source without installation
-    __version__ = "0.0.0+unknown"
-
-# Import core classes and utilities
-from uutel.core import (
+from uutel.core.auth import AuthResult, BaseAuth
+from uutel.core.base import BaseUU
+from uutel.core.exceptions import (
     AuthenticationError,
-    AuthResult,
-    BaseAuth,
-    BaseUU,
     ModelError,
     NetworkError,
     ProviderError,
     RateLimitError,
-    RetryConfig,
     UUTELError,
     ValidationError,
+)
+from uutel.core.utils import (
+    RetryConfig,
     create_http_client,
     create_tool_call_response,
     extract_provider_from_model,
@@ -51,7 +41,6 @@ __all__ = [
     "RetryConfig",
     "UUTELError",
     "ValidationError",
-    "__version__",
     "create_http_client",
     "create_tool_call_response",
     "extract_provider_from_model",

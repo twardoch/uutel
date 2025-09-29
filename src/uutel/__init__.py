@@ -13,7 +13,10 @@ except ImportError:
     # Fallback version when running from source without installation
     __version__ = "0.0.0+unknown"
 
-# Import core classes and utilities
+# Import providers submodule
+from uutel import providers
+
+# Import core classes and utilities - simplified for core functionality
 from uutel.core import (
     AuthenticationError,
     AuthResult,
@@ -23,7 +26,6 @@ from uutel.core import (
     NetworkError,
     ProviderError,
     RateLimitError,
-    RetryConfig,
     UUTELError,
     ValidationError,
     create_http_client,
@@ -31,6 +33,7 @@ from uutel.core import (
     extract_provider_from_model,
     extract_tool_calls_from_response,
     format_error_message,
+    get_error_debug_info,
     transform_openai_to_provider,
     transform_openai_tools_to_provider,
     transform_provider_to_openai,
@@ -40,7 +43,9 @@ from uutel.core import (
 )
 
 __all__ = [
+    # Core classes
     "AuthResult",
+    # Exceptions
     "AuthenticationError",
     "BaseAuth",
     "BaseUU",
@@ -48,15 +53,19 @@ __all__ = [
     "NetworkError",
     "ProviderError",
     "RateLimitError",
-    "RetryConfig",
     "UUTELError",
     "ValidationError",
+    # Package metadata
     "__version__",
+    # Core utilities
     "create_http_client",
     "create_tool_call_response",
     "extract_provider_from_model",
     "extract_tool_calls_from_response",
     "format_error_message",
+    "get_error_debug_info",
+    # Submodules
+    "providers",
     "transform_openai_to_provider",
     "transform_openai_tools_to_provider",
     "transform_provider_to_openai",

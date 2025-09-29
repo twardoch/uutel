@@ -1,531 +1,465 @@
-# UUTEL: Universal AI Provider for LiteLLM
+# UUTEL: Universal AI Provider for LiteLLM - Implementation Plan
 
 ## Project Overview
 
-**UUTEL** is a Python package that extends LiteLLM's provider ecosystem by implementing custom providers for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex. It enables unified LLM inferencing through LiteLLM's standardized interface while leveraging the unique capabilities of each AI provider.
+**UUTEL** (Universal Units for AI Telegraphy) is a Python package that extends LiteLLM's provider ecosystem by implementing custom providers for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex. It enables unified LLM inferencing through LiteLLM's standardized interface while leveraging the unique capabilities of each AI provider.
 
-> IMPORTANT: Whoever is modifying the code of this package, DO NOT ADD ANY "enterprise" features, verification, validation etc.. Keep focused on the main objective of the project, but develop documentation (Jekyll site in `docs` folder), develop `tests`, develop `examples`. And make the code robust, and test it with unit tests but also with realistic `examples`.  
+## Architecture Analysis
 
-## Technical Architecture
+### AI SDK Provider Pattern Study
 
-### Core Design Principles
+From analyzing the external AI SDK provider implementations, we identified these key patterns:
 
-1. **LiteLLM Compatibility**: Full adherence to LiteLLM's provider interface patterns
-2. **Unified API**: Consistent OpenAI-compatible interface across all providers
-3. **Authentication Management**: Secure handling of different auth mechanisms (OAuth, API keys, service accounts)
-4. **Streaming Support**: Real-time response streaming for all providers
-5. **Tool Calling**: Function calling capabilities where supported
-6. **Error Handling**: Robust error mapping and fallback mechanisms
+1. **Vercel AI SDK v5 Pattern**:
+   - Provider factory functions (`createProvider()`)
+   - Language model classes implementing `LanguageModelV2`
+   - Transformation utilities for message/tool format conversion
+   - Streaming support with `ReadableStream<LanguageModelV2StreamPart>`
+   - Tool calling support with schema validation
+   - Error handling with provider-specific error types
 
-### Naming Convention
+2. **LiteLLM Integration Pattern**:
+   - Custom providers inherit from `BaseLLM` or use `CustomLLM`
+   - Provider registration via `custom_provider_map`
+   - Request/response transformation methods
+   - Async/streaming support through specialized wrappers
+   - Model routing based on provider prefixes
 
-**IMPORTANT**: All provider classes follow the pattern `{ProviderName}UU` where `UU` stands for "Universal Unit":
+### Target Provider Functionality
 
-- **Base class**: `BaseUU` (extends LiteLLM's `BaseLLM`)
-- **Claude Code provider**: `ClaudeCodeUU`
-- **Gemini CLI provider**: `GeminiCLIUU`
-- **Cloud Code provider**: `CloudCodeUU`
-- **Codex provider**: `CodexUU`
+Each provider will be ported from the corresponding AI SDK implementation:
 
-This naming convention:
-- Keeps class names concise and memorable
-- Maintains consistency across all providers
-- Clearly identifies UUTEL providers in the codebase
-- Avoids conflicts with existing provider names
+1. **Claude Code** (`ai-sdk-provider-claude-code`):
+   - OAuth authentication with MCP tool integration
+   - Browser-based auth flow
+   - Tool calling support
 
-### Implementation Guidelines
+2. **Gemini CLI** (`ai-sdk-provider-gemini-cli`):
+   - Multi-auth support (API key, Vertex AI, OAuth)
+   - Gemini CLI Core integration
+   - Advanced tool calling
 
-**File Structure Pattern**:
+3. **Cloud Code** (`cloud-code-ai-provider`):
+   - Google Cloud Code API integration
+   - Service account authentication
+   - OAuth flow with Code Assist API
+
+4. **Codex** (`codex-ai-provider`):
+   - ChatGPT backend integration
+   - Session token management
+   - Codex CLI compatibility
+
+## Implementation Plan
+
+### Phase 1: Core Infrastructure (Days 1-2)
+
+#### 1.1 Package Structure Setup
 ```
-providers/{provider_name}/
-├── __init__.py              # Exports: {ProviderName}UU, {ProviderName}Auth
-├── provider.py              # Main class: {ProviderName}UU(BaseUU)
-├── auth.py                  # Auth class: {ProviderName}Auth
-├── transforms.py            # Transform class: {ProviderName}Transform
-└── models.py                # Model classes: {ProviderName}Request, {ProviderName}Response
+uutel/
+├── __init__.py                 # Main exports and provider registration
+├── core/
+│   ├── __init__.py
+│   ├── base.py                 # BaseUU class (inherits from LiteLLM BaseLLM)
+│   ├── auth.py                 # Common authentication utilities
+│   ├── exceptions.py           # Custom exception classes
+│   └── utils.py                # Message transformation utilities
+└── providers/                  # Provider implementations (Phase 2)
 ```
 
-**Class Naming Examples**:
+#### 1.2 Base Provider Class (`core/base.py`)
 ```python
-# Base infrastructure
-class BaseUU(BaseLLM):                    # core/base.py
+from litellm.llms.base import BaseLLM
+from typing import Optional, Dict, Any, AsyncIterator, Iterator
+from litellm.types.utils import ModelResponse, GenericStreamingChunk
 
-# Claude Code provider
-class ClaudeCodeUU(BaseUU):               # providers/claude_code/provider.py
-class ClaudeCodeAuth:                     # providers/claude_code/auth.py
-class ClaudeCodeTransform:                # providers/claude_code/transforms.py
-class ClaudeCodeRequest:                  # providers/claude_code/models.py
-class ClaudeCodeResponse:                 # providers/claude_code/models.py
+class BaseUU(BaseLLM):
+    """Base class for all UUTEL providers following LiteLLM patterns."""
 
-# Gemini CLI provider
-class GeminiCLIUU(BaseUU):                # providers/gemini_cli/provider.py
-class GeminiCLIAuth:                      # providers/gemini_cli/auth.py
-class GeminiCLITransform:                 # providers/gemini_cli/transforms.py
+    def __init__(self, provider_name: str):
+        super().__init__()
+        self.provider_name = provider_name
 
-# Cloud Code provider
-class CloudCodeUU(BaseUU):                # providers/cloud_code/provider.py
-class CloudCodeAuth:                      # providers/cloud_code/auth.py
+    # Abstract methods to be implemented by each provider
+    def completion(self, *args, **kwargs) -> ModelResponse:
+        raise NotImplementedError
 
-# Codex provider
-class CodexUU(BaseUU):                    # providers/codex/provider.py
-class CodexAuth:                          # providers/codex/auth.py
+    async def acompletion(self, *args, **kwargs) -> ModelResponse:
+        raise NotImplementedError
+
+    def streaming(self, *args, **kwargs) -> Iterator[GenericStreamingChunk]:
+        raise NotImplementedError
+
+    async def astreaming(self, *args, **kwargs) -> AsyncIterator[GenericStreamingChunk]:
+        raise NotImplementedError
 ```
 
-**Import Pattern**:
+#### 1.3 Authentication Framework (`core/auth.py`)
 ```python
-# Main package exports
-from uutel.providers.claude_code import ClaudeCodeUU
-from uutel.providers.gemini_cli import GeminiCLIUU
-from uutel.providers.cloud_code import CloudCodeUU
-from uutel.providers.codex import CodexUU
+from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
-# Usage in LiteLLM registration
+class BaseAuth(ABC):
+    """Base authentication interface for all providers."""
+
+    @abstractmethod
+    async def get_headers(self) -> Dict[str, str]:
+        pass
+
+    @abstractmethod
+    async def refresh_if_needed(self) -> bool:
+        pass
+
+class OAuthAuth(BaseAuth):
+    """OAuth 2.0 authentication implementation."""
+    pass
+
+class ApiKeyAuth(BaseAuth):
+    """API key authentication implementation."""
+    pass
+
+class ServiceAccountAuth(BaseAuth):
+    """Service account authentication implementation."""
+    pass
+```
+
+#### 1.4 Message Transformation (`core/utils.py`)
+```python
+from typing import List, Dict, Any, Optional
+from litellm.types.utils import ModelResponse, GenericStreamingChunk
+
+def transform_openai_to_provider(messages: List[Dict], provider_format: str) -> Any:
+    """Transform OpenAI-style messages to provider-specific format."""
+    pass
+
+def transform_provider_to_openai(response: Any, provider_format: str) -> ModelResponse:
+    """Transform provider response to OpenAI-compatible format."""
+    pass
+
+def handle_tool_calls(tools: Optional[List[Dict]], provider_format: str) -> Any:
+    """Transform tool definitions to provider-specific format."""
+    pass
+```
+
+### Phase 2: Provider Implementations (Days 3-6)
+
+#### 2.1 Claude Code Provider (`providers/claude_code/`)
+```
+claude_code/
+├── __init__.py
+├── provider.py         # ClaudeCodeUU class
+├── auth.py            # ClaudeCodeAuth class
+├── transform.py       # Message transformation
+└── types.py           # Provider-specific types
+```
+
+**Key Implementation Points**:
+- Port OAuth authentication from `ai-sdk-provider-claude-code/src/client.ts`
+- Implement MCP tool calling support
+- Handle browser-based auth flow
+- Transform messages using patterns from `ai-sdk-provider-claude-code/src/message-mapper.ts`
+
+#### 2.2 Gemini CLI Provider (`providers/gemini_cli/`)
+```
+gemini_cli/
+├── __init__.py
+├── provider.py         # GeminiCLIUU class
+├── auth.py            # Multi-auth support (API key, Vertex AI, OAuth)
+├── transform.py       # Message/tool transformation
+└── client.py          # Gemini CLI Core integration
+```
+
+**Key Implementation Points**:
+- Port multi-auth from `ai-sdk-provider-gemini-cli/src/client.ts`
+- Integrate with `@google/gemini-cli-core`
+- Implement advanced tool calling from `ai-sdk-provider-gemini-cli/src/tool-mapper.ts`
+- Handle different auth types (API key, Vertex AI, OAuth)
+
+#### 2.3 Cloud Code Provider (`providers/cloud_code/`)
+```
+cloud_code/
+├── __init__.py
+├── provider.py         # CloudCodeUU class
+├── auth.py            # OAuth + Service Account auth
+├── transform.py       # Message transformation
+└── api.py             # Code Assist API integration
+```
+
+**Key Implementation Points**:
+- Port authentication from `cloud-code-ai-provider/src/google-cloud-code-auth.ts`
+- Implement Code Assist API integration
+- Handle OAuth flow with project setup
+- Transform messages using patterns from `cloud-code-ai-provider/src/convert-to-cloud-code-messages.ts`
+
+#### 2.4 Codex Provider (`providers/codex/`)
+```
+codex/
+├── __init__.py
+├── provider.py         # CodexUU class
+├── auth.py            # Session token management
+├── transform.py       # Message transformation
+└── streaming.py       # Codex-specific streaming
+```
+
+**Key Implementation Points**:
+- Port authentication from `codex-ai-provider/src/codex-auth.ts`
+- Implement session token management and refresh
+- Handle Codex CLI compatibility
+- Implement streaming from `codex-ai-provider/src/codex-language-model.ts`
+
+### Phase 3: LiteLLM Integration (Day 7)
+
+#### 3.1 Provider Registration (`__init__.py`)
+```python
+import litellm
+from .providers.claude_code import ClaudeCodeUU
+from .providers.gemini_cli import GeminiCLIUU
+from .providers.cloud_code import CloudCodeUU
+from .providers.codex import CodexUU
+
+# Register providers with LiteLLM
 litellm.custom_provider_map = [
     {"provider": "claude-code", "custom_handler": ClaudeCodeUU()},
     {"provider": "gemini-cli", "custom_handler": GeminiCLIUU()},
     {"provider": "cloud-code", "custom_handler": CloudCodeUU()},
     {"provider": "codex", "custom_handler": CodexUU()},
 ]
+
+# Model routing configuration
+def setup_model_routing():
+    """Configure model routing for UUTEL providers."""
+    pass
 ```
 
-### Package Structure
-
-```
-uutel/
-├── __init__.py                 # Main exports and provider registration
-├── core/
-│   ├── __init__.py
-│   ├── base.py                 # Base provider classes and interfaces
-│   ├── auth.py                 # Common authentication utilities
-│   ├── exceptions.py           # Custom exception classes
-│   └── utils.py                # Common utilities and helpers
-├── providers/
-│   ├── __init__.py
-│   ├── claude_code/
-│   │   ├── __init__.py
-│   │   ├── provider.py         # Claude Code provider implementation
-│   │   ├── auth.py             # Claude Code authentication
-│   │   ├── models.py           # Response/request models
-│   │   └── transforms.py       # Message transformation logic
-│   ├── gemini_cli/
-│   │   ├── __init__.py
-│   │   ├── provider.py         # Gemini CLI provider implementation
-│   │   ├── auth.py             # Gemini CLI authentication
-│   │   ├── models.py           # Response/request models
-│   │   └── transforms.py       # Message transformation logic
-│   ├── cloud_code/
-│   │   ├── __init__.py
-│   │   ├── provider.py         # Google Cloud Code provider implementation
-│   │   ├── auth.py             # Cloud Code authentication
-│   │   ├── models.py           # Response/request models
-│   │   └── transforms.py       # Message transformation logic
-│   └── codex/
-│       ├── __init__.py
-│       ├── provider.py         # OpenAI Codex provider implementation
-│       ├── auth.py             # Codex authentication
-│       ├── models.py           # Response/request models
-│       └── transforms.py       # Message transformation logic
-├── tests/
-│   ├── __init__.py
-│   ├── test_claude_code.py
-│   ├── test_gemini_cli.py
-│   ├── test_cloud_code.py
-│   ├── test_codex.py
-│   └── conftest.py             # Pytest configuration
-└── examples/
-    ├── basic_usage.py
-    ├── streaming_example.py
-    ├── tool_calling_example.py
-    └── auth_examples.py
-```
-
-## Implementation Strategy
-
-### Phase 1: Core Infrastructure (Foundation)
-
-#### 1.1 Base Classes and Interfaces
-- Implement `BaseUU` extending LiteLLM's `BaseLLM`
-- Define common interfaces for authentication, request/response transformation
-- Create standardized error handling and logging framework
-- Implement utility functions for message format conversion
-
-#### 1.2 Authentication Framework
-- OAuth 2.0 handler for Claude Code and Cloud Code
-- API key management for Gemini CLI
-- Token refresh and caching mechanisms
-- Secure credential storage and retrieval
-
-#### 1.3 Core Utilities
-- HTTP client wrapper with retry logic
-- Response streaming utilities
-- Message format transformation helpers
-- Tool/function calling adapters
-
-### Phase 2: Provider Implementations
-
-#### 2.1 Claude Code Provider
-**Based on**: AI SDK provider pattern from `ai-sdk-provider-claude-code`
-
-**Key Features**:
-- MCP (Model Context Protocol) tool integration
-- OAuth authentication with browser-based flow
-- Streaming chat completions
-- Support for Claude 3.5 Sonnet and Haiku models
-
-**Implementation Details**:
+#### 3.2 Provider Factory Functions
 ```python
-class ClaudeCodeUU(BaseUU):
-    provider_name = "claude-code"
-    supported_models = ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+def create_claude_code_provider(auth_config: Optional[Dict] = None) -> ClaudeCodeUU:
+    """Create Claude Code provider instance."""
+    pass
 
-    def __init__(self, api_key=None, **kwargs):
-        self.auth_manager = ClaudeCodeAuth(api_key=api_key)
-        super().__init__(**kwargs)
+def create_gemini_cli_provider(auth_type: str = "oauth", **kwargs) -> GeminiCLIUU:
+    """Create Gemini CLI provider instance."""
+    pass
 
-    async def completion(self, model, messages, **kwargs):
-        # Transform messages to Claude Code format
-        # Handle streaming and non-streaming requests
-        # Map responses back to LiteLLM format
-        pass
+def create_cloud_code_provider(project_id: Optional[str] = None) -> CloudCodeUU:
+    """Create Cloud Code provider instance."""
+    pass
+
+def create_codex_provider() -> CodexUU:
+    """Create Codex provider instance."""
+    pass
 ```
 
-#### 2.2 Gemini CLI Provider
-**Based on**: AI SDK provider pattern from `ai-sdk-provider-gemini-cli`
+### Phase 4: Examples and Documentation (Day 8)
 
-**Key Features**:
-- Multiple authentication methods (API key, Vertex AI, OAuth)
-- Function calling with tool use
-- Streaming responses with proper chunk handling
-- Support for Gemini 2.0 Flash and Pro models
-
-**Implementation Details**:
+#### 4.1 Usage Examples (`examples/`)
 ```python
-class GeminiCLIUU(BaseUU):
-    provider_name = "gemini-cli"
-    supported_models = ["gemini-2.0-flash-exp", "gemini-1.5-pro-latest"]
+# examples/basic_usage.py
+import litellm
+from uutel import setup_providers
 
-    def __init__(self, auth_type="api-key", **kwargs):
-        self.auth_manager = GeminiCLIAuth(auth_type=auth_type, **kwargs)
-        super().__init__(**kwargs)
+# Setup UUTEL providers
+setup_providers()
 
-    async def completion(self, model, messages, **kwargs):
-        # Use @google/gemini-cli-core patterns
-        # Handle multiple auth types
-        # Process tool calling and streaming
-        pass
+# Use Claude Code
+response = litellm.completion(
+    model="uutel/claude-code/claude-3-5-sonnet",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Use Gemini CLI
+response = litellm.completion(
+    model="uutel/gemini-cli/gemini-2.0-flash-exp",
+    messages=[{"role": "user", "content": "Generate code"}],
+    stream=True
+)
+
+# Use Cloud Code
+response = litellm.completion(
+    model="uutel/cloud-code/gemini-2.5-pro",
+    messages=[{"role": "user", "content": "Review this PR"}]
+)
+
+# Use Codex
+response = litellm.completion(
+    model="uutel/codex/gpt-4o",
+    messages=[{"role": "user", "content": "Explain this algorithm"}],
+    max_tokens=4000
+)
 ```
 
-#### 2.3 Google Cloud Code Provider
-**Based on**: Cloud Code AI provider implementation
-
-**Key Features**:
-- Google Cloud authentication with service accounts
-- Code Assist API integration
-- Project-based model access
-- Safety settings and content filtering
-
-**Implementation Details**:
+#### 4.2 Streaming Example (`examples/streaming_example.py`)
 ```python
-class CloudCodeUU(BaseUU):
-    provider_name = "cloud-code"
-    supported_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+import asyncio
+from uutel import create_claude_code_provider
 
-    def __init__(self, project_id=None, **kwargs):
-        self.auth_manager = CloudCodeAuth(project_id=project_id)
-        super().__init__(**kwargs)
+async def streaming_example():
+    provider = create_claude_code_provider()
 
-    async def completion(self, model, messages, **kwargs):
-        # Use Cloud Code Assist API patterns
-        # Handle project-based routing
-        # Implement safety settings
-        pass
+    async for chunk in provider.astreaming(
+        model="claude-3-5-sonnet",
+        messages=[{"role": "user", "content": "Write a story"}]
+    ):
+        print(chunk.delta, end="")
+
+asyncio.run(streaming_example())
 ```
 
-#### 2.4 OpenAI Codex Provider
-**Based on**: Codex AI provider implementation patterns
-
-**Key Features**:
-- ChatGPT backend API integration
-- Advanced reasoning capabilities (o1-style models)
-- Tool calling with function definitions
-- Authentication via Codex CLI token
-
-**Implementation Details**:
+#### 4.3 Tool Calling Example (`examples/tool_calling_example.py`)
 ```python
-class CodexUU(BaseUU):
-    provider_name = "codex"
-    supported_models = ["gpt-4o", "gpt-4o-mini", "o1-preview", "o1-mini"]
+import litellm
+from uutel import setup_providers
 
-    def __init__(self, **kwargs):
-        self.auth_manager = CodexAuth()
-        super().__init__(**kwargs)
+setup_providers()
 
-    async def completion(self, model, messages, **kwargs):
-        # Use ChatGPT backend API
-        # Handle reasoning mode for o1 models
-        # Process tool calling and streaming
-        pass
+def get_weather(location: str) -> str:
+    return f"Weather in {location}: Sunny, 72°F"
+
+response = litellm.completion(
+    model="uutel/gemini-cli/gemini-2.0-flash-exp",
+    messages=[{"role": "user", "content": "What's the weather in SF?"}],
+    tools=[{
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather for a location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string"}
+                },
+                "required": ["location"]
+            }
+        }
+    }],
+    tool_choice="auto"
+)
 ```
 
-### Phase 3: LiteLLM Integration
+### Phase 5: Testing and Validation (Day 9)
 
-#### 3.1 Provider Registration
-- Register all providers with LiteLLM's provider system
-- Implement model name mapping (e.g., `uutel/claude-code/claude-3-5-sonnet`)
-- Set up routing logic for different model prefixes
-- Configure default settings and parameters
+#### 5.1 Core Tests (`tests/`)
+```
+tests/
+├── conftest.py
+├── test_base.py           # Test BaseUU functionality
+├── test_auth.py           # Test authentication classes
+├── test_utils.py          # Test transformation utilities
+├── test_exceptions.py     # Test error handling
+├── test_providers_init.py # Test provider initialization
+├── test_claude_code.py    # Claude Code provider tests
+├── test_gemini_cli.py     # Gemini CLI provider tests
+├── test_cloud_code.py     # Cloud Code provider tests
+├── test_codex.py          # Codex provider tests
+└── test_integration.py    # LiteLLM integration tests
+```
 
-#### 3.2 Configuration Management
-- Environment variable support for authentication
-- Configuration file support (YAML/JSON)
-- Runtime provider configuration
-- Model-specific parameter handling
+#### 5.2 Test Strategy
+- **Unit Tests**: Test each provider class individually
+- **Integration Tests**: Test LiteLLM integration and routing
+- **Authentication Tests**: Test auth flows (mocked)
+- **Transformation Tests**: Test message/tool format conversion
+- **Streaming Tests**: Test async streaming functionality
+- **Tool Calling Tests**: Test function calling capabilities
 
-#### 3.3 Testing and Validation
-- Unit tests for each provider
-- Integration tests with actual APIs
-- Performance benchmarking
-- Error handling validation
+### Phase 6: Package Distribution (Day 10)
 
-### Phase 4: Advanced Features
+#### 6.1 Package Configuration
+- **pyproject.toml**: Modern Python packaging
+- **Dependencies**: Minimal required dependencies
+- **Optional Dependencies**: Provider-specific extras
+- **Entry Points**: CLI utilities if needed
 
-#### 4.1 Tool Calling Standardization
-- Unified function calling interface across providers
-- Tool schema validation and conversion
-- Streaming tool responses
-- Error handling for tool failures
+#### 6.2 Documentation
+- **README.md**: Installation and basic usage
+- **DEPENDENCIES.md**: Rationale for each dependency
+- **API Documentation**: Provider-specific configuration
+- **Migration Guide**: From existing provider implementations
 
-#### 4.2 Caching and Performance
-- Response caching with TTL
-- Request deduplication
-- Connection pooling
-- Rate limiting and backoff
+## Technical Specifications
 
-#### 4.3 Monitoring and Observability
-- Request/response logging
-- Performance metrics
-- Cost tracking integration
-- Health check endpoints
+### Dependencies Strategy
+```toml
+[project]
+dependencies = [
+    "litellm>=1.44.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+]
 
-## Package Dependencies
+[project.optional-dependencies]
+claude-code = ["browser-cookie3>=0.19.1"]
+gemini-cli = ["google-auth>=2.23.0", "google-auth-oauthlib>=1.1.0"]
+cloud-code = ["google-cloud-core>=2.3.0"]
+codex = ["cryptography>=41.0.0"]
+all = ["uutel[claude-code,gemini-cli,cloud-code,codex]"]
+dev = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0", "pytest-cov>=4.1.0"]
+```
 
-### Core Dependencies
+### Model Naming Convention
+- **Claude Code**: `uutel/claude-code/{model-name}`
+- **Gemini CLI**: `uutel/gemini-cli/{model-name}`
+- **Cloud Code**: `uutel/cloud-code/{model-name}`
+- **Codex**: `uutel/codex/{model-name}`
+
+### Authentication Configuration
 ```python
-# Core LiteLLM integration
-litellm >= 1.70.0
-
-# HTTP and async support
-httpx >= 0.25.0
-aiohttp >= 3.8.0
-
-# Authentication and OAuth
-google-auth >= 2.15.0
-google-auth-oauthlib >= 1.0.0
-
-# Data validation and parsing
-pydantic >= 2.0.0
-pydantic-settings >= 2.0.0
-
-# CLI and configuration
-typer >= 0.9.0
-rich >= 13.0.0
-
-# Logging and monitoring
-loguru >= 0.7.0
-
-# Testing
-pytest >= 7.0.0
-pytest-asyncio >= 0.21.0
-pytest-mock >= 3.10.0
-```
-
-### Optional Dependencies
-```python
-# Development tools
-black >= 23.0.0
-ruff >= 0.1.0
-mypy >= 1.0.0
-
-# Documentation
-mkdocs >= 1.5.0
-mkdocs-material >= 9.0.0
-```
-
-## Authentication Strategies
-
-### 1. Claude Code Authentication
-- **Method**: OAuth 2.0 with PKCE
-- **Tokens**: Access and refresh tokens
-- **Storage**: Local file or environment variables
-- **Flow**: Browser-based authentication
-
-### 2. Gemini CLI Authentication
-- **Methods**: Multiple (API key, Vertex AI, OAuth)
-- **API Key**: `GEMINI_API_KEY` environment variable
-- **Vertex AI**: Service account JSON or ADC
-- **OAuth**: Personal Google account
-
-### 3. Google Cloud Code Authentication
-- **Method**: Google Cloud service accounts
-- **Credentials**: Service account JSON or ADC
-- **Project**: Google Cloud project ID required
-- **Scopes**: Cloud platform and Code Assist APIs
-
-### 4. OpenAI Codex Authentication
-- **Method**: Session tokens from Codex CLI
-- **Storage**: `~/.codex/auth.json`
-- **Refresh**: Automatic token refresh
-- **Fallback**: OpenAI API key for compatibility
-
-## Message Format Transformations
-
-### Input Transformation (LiteLLM → Provider)
-Each provider requires specific message format conversion:
-
-1. **OpenAI Format** (LiteLLM input) → **Provider Format**
-2. **Role Mapping**: system/user/assistant → provider-specific roles
-3. **Content Processing**: text, images, files → provider content types
-4. **Tool Definitions**: OpenAI function schema → provider tool schema
-
-### Output Transformation (Provider → LiteLLM)
-Standardize responses to OpenAI format:
-
-1. **Response Structure**: Provider response → OpenAI ChatCompletion
-2. **Content Extraction**: Provider content → OpenAI message content
-3. **Usage Statistics**: Provider tokens → OpenAI usage format
-4. **Streaming Chunks**: Provider deltas → OpenAI delta format
-
-## Error Handling and Retry Logic
-
-### Error Categories
-1. **Authentication Errors**: Invalid tokens, expired credentials
-2. **Rate Limiting**: Request throttling, quota exceeded
-3. **Model Errors**: Invalid model, model overloaded
-4. **Network Errors**: Connection timeouts, DNS failures
-5. **Validation Errors**: Invalid input format, parameter errors
-
-### Retry Strategy
-```python
-class RetryConfig:
-    max_retries: int = 3
-    backoff_factor: float = 2.0
-    retry_on_status: List[int] = [429, 502, 503, 504]
-    retry_on_exceptions: List[Exception] = [ConnectionError, TimeoutError]
-```
-
-## Testing Strategy
-
-### Unit Tests
-- Test each provider in isolation
-- Mock external API calls
-- Validate message transformations
-- Test error handling paths
-
-### Integration Tests
-- Test with real API endpoints
-- Validate authentication flows
-- Test streaming responses
-- Validate tool calling
-
-### Performance Tests
-- Benchmark response times
-- Test concurrent requests
-- Memory usage profiling
-- Rate limiting validation
-
-## Documentation Plan
-
-### API Documentation
-- Provider-specific configuration
-- Authentication setup guides
-- Usage examples for each provider
-- Tool calling examples
-
-### Integration Guides
-- LiteLLM integration steps
-- Environment setup
-- Configuration file examples
-- Troubleshooting guides
-
-### Developer Documentation
-- Contributing guidelines
-- Code style standards
-- Testing procedures
-- Release process
-
-## Deployment and Distribution
-
-### Package Distribution
-- PyPI package publication
-- Semantic versioning
-- GitHub releases with changelog
-- Docker image for containerized usage
-
-### CI/CD Pipeline
-- GitHub Actions for testing
-- Automated testing on multiple Python versions
-- Code quality checks (black, ruff, mypy)
-- Security scanning
-
-### Installation Methods
-```bash
-# Standard installation
-pip install uutel
-
-# With all optional dependencies
-pip install uutel[all]
-
-# Development installation
-pip install -e .[dev]
+# Environment variables
+CLAUDE_CODE_AUTH_DIR=~/.claude
+GEMINI_CLI_AUTH_TYPE=oauth  # or api-key, vertex-ai
+GEMINI_API_KEY=your-key
+GOOGLE_CLOUD_PROJECT=your-project
+CODEX_AUTH_FILE=~/.codex/auth.json
+OPENAI_API_KEY=fallback-key
 ```
 
 ## Success Criteria
 
-### Technical Requirements
-1. ✅ Full LiteLLM provider compatibility
-2. ✅ Support for all 4 target providers
-3. ✅ Streaming response handling
-4. ✅ Tool calling functionality
-5. ✅ Comprehensive error handling
-6. ✅ >90% test coverage
+### Functional Requirements
+1. ✅ All four providers successfully registered with LiteLLM
+2. ✅ Completion and streaming work for each provider
+3. ✅ Tool calling functions correctly where supported
+4. ✅ Authentication flows work (OAuth, API key, service account)
+5. ✅ Error handling provides clear, actionable messages
+6. ✅ Message transformation maintains fidelity across providers
 
 ### Performance Requirements
-1. ✅ <200ms overhead per request
-2. ✅ Support for 100+ concurrent requests
-3. ✅ Proper memory management
-4. ✅ Efficient connection pooling
+1. ✅ Provider initialization < 100ms
+2. ✅ Request transformation < 10ms
+3. ✅ No memory leaks in streaming scenarios
+4. ✅ Graceful handling of network timeouts
 
-### Documentation Requirements
-1. ✅ Complete API documentation
-2. ✅ Setup and configuration guides
-3. ✅ Working examples for each provider
-4. ✅ Troubleshooting documentation
+### Code Quality Requirements
+1. ✅ 100% type coverage with mypy
+2. ✅ >90% test coverage
+3. ✅ All functions < 20 lines
+4. ✅ All files < 200 lines
+5. ✅ No enterprise patterns or abstractions
+6. ✅ Clear, readable code with minimal complexity
 
-## Risk Assessment and Mitigation
+### Integration Requirements
+1. ✅ Works with standard LiteLLM Router
+2. ✅ Compatible with LiteLLM proxy server
+3. ✅ Supports LiteLLM's logging and monitoring hooks
+4. ✅ Handles LiteLLM's error retry mechanisms
+5. ✅ Works with LiteLLM's cost tracking features
 
-### Technical Risks
-1. **API Changes**: Provider APIs may change → Version pinning and adapters
-2. **Authentication Issues**: Complex auth flows → Comprehensive testing
-3. **Rate Limiting**: Provider-specific limits → Intelligent retry logic
-4. **Performance**: Network latency → Async operations and caching
+## Development Guidelines
 
-### Operational Risks
-1. **Maintenance Burden**: Multiple providers → Automated testing and monitoring
-2. **Security**: Credential handling → Secure storage and transmission
-3. **Compatibility**: LiteLLM updates → Continuous integration testing
+### Code Principles
+1. **Simplicity First**: Choose simple solutions over complex ones
+2. **Port, Don't Reinvent**: Base implementations on existing AI SDK providers
+3. **LiteLLM Patterns**: Follow established LiteLLM provider patterns
+4. **Minimal Dependencies**: Only add dependencies when absolutely necessary
+5. **Test Coverage**: Every public method must have tests
+6. **Documentation**: Every provider needs usage examples
 
-## Future Enhancements
+### Anti-Patterns to Avoid
+1. ❌ Complex configuration systems
+2. ❌ Enterprise monitoring or health checks
+3. ❌ Performance benchmarking or profiling
+4. ❌ Security hardening beyond basic input validation
+5. ❌ Abstract factories or dependency injection
+6. ❌ Sophisticated logging frameworks
+7. ❌ Caching layers or optimization systems
 
-### Potential Extensions
-1. **Additional Providers**: Perplexity, Anthropic direct, Azure OpenAI
-2. **Advanced Features**: Response caching, load balancing, failover
-3. **Monitoring**: Detailed metrics, cost tracking, usage analytics
-4. **Enterprise Features**: Team management, audit logging, compliance
-
-### Community Contributions
-1. **Open Source**: MIT license for community contributions
-2. **Plugin System**: Allow third-party provider extensions
-3. **Documentation**: Community-driven examples and guides
-4. **Testing**: Community testing with different configurations
-
-This plan provides a comprehensive roadmap for implementing UUTEL as a robust, production-ready Python package that extends LiteLLM's capabilities while maintaining compatibility and performance standards.
+This plan provides a clear, step-by-step approach to building UUTEL as a focused, simple LiteLLM provider package that ports functionality from existing AI SDK providers while maintaining the simplicity and usability that users expect.

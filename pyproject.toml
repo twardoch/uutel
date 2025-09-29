@@ -10,22 +10,30 @@
 #------------------------------------------------------------------------------
 [project]
 name = "uutel"
-description = "Universal AI Provider for LiteLLM - extends LiteLLM with custom providers"
+description = "Universal AI Provider for LiteLLM - extends LiteLLM with Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex providers for unified LLM inferencing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Adam Twardoch", email = "adam+github@twardoch.com"},
 ]
+maintainers = [
+    {name = "Adam Twardoch", email = "adam+github@twardoch.com"},
+]
 keywords = [
     "ai", "llm", "litellm", "claude", "gemini", "codex", "openai",
-    "providers", "universal", "anthropic", "google"
+    "providers", "universal", "anthropic", "google", "api", "sdk",
+    "machine-learning", "artificial-intelligence", "chat", "completion",
+    "streaming", "tool-calling", "function-calling", "mcp", "oauth",
+    "vertex-ai", "cloud-code", "chatgpt", "gpt", "nlp", "conversational-ai"
 ]
 dynamic = ["version"]
 
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
@@ -35,62 +43,151 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Text Processing :: Linguistic",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Framework :: AsyncIO",
+    "Natural Language :: English",
+    "Typing :: Typed",
 ]
 
 # Core dependencies for UUTEL functionality
 dependencies = [
-    "litellm>=1.70.0",
-    "httpx>=0.25.0",
-    "aiohttp>=3.8.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "loguru>=0.7.0",
+    "litellm>=1.74.0",  # Latest with CustomLLM improvements
+    "httpx>=0.27.0",    # Latest stable with performance improvements
+    "aiohttp>=3.9.0",   # Latest stable with security fixes
+    "pydantic>=2.8.0",  # Latest stable v2 with performance improvements
+    "pydantic-settings>=2.4.0",  # Latest stable
+    "loguru>=0.7.2",    # Latest stable with performance improvements
 ]
 
 # Project URLs
 [project.urls]
-Documentation = "https://github.com/twardoch/uutel#readme"
-Issues = "https://github.com/twardoch/uutel/issues"
-Source = "https://github.com/twardoch/uutel"
 Homepage = "https://github.com/twardoch/uutel"
+Documentation = "https://github.com/twardoch/uutel#readme"
+Repository = "https://github.com/twardoch/uutel"
+Source = "https://github.com/twardoch/uutel"
+"Bug Tracker" = "https://github.com/twardoch/uutel/issues"
+Issues = "https://github.com/twardoch/uutel/issues"
+Changelog = "https://github.com/twardoch/uutel/blob/main/CHANGELOG.md"
+"Development Guide" = "https://github.com/twardoch/uutel/blob/main/DEVELOPMENT.md"
+"Contributing" = "https://github.com/twardoch/uutel/blob/main/CONTRIBUTING.md"
+
+# Entry points for CLI tools (if needed in future)
+[project.entry-points]
+# CLI entry point (future expansion)
+# "console_scripts.uutel" = "uutel.cli:main"
+
+# LiteLLM provider registration (automatic discovery)
+[project.entry-points."litellm.providers"]
+codex = "uutel.providers.codex:CodexCustomLLM"
+# Future providers will be added here:
+# claude-code = "uutel.providers.claude_code:ClaudeCodeCustomLLM"
+# gemini-cli = "uutel.providers.gemini_cli:GeminiCLICustomLLM"
+# cloud-code = "uutel.providers.cloud_code:CloudCodeCustomLLM"
 
 #------------------------------------------------------------------------------
 # OPTIONAL DEPENDENCIES
 #------------------------------------------------------------------------------
 [project.optional-dependencies]
 
-# Authentication dependencies
+# Provider-specific dependencies
+claude-code = [
+    "browser-cookie3>=0.19.1",  # For browser session extraction
+    "selenium>=4.18.0",         # For browser automation if needed
+    "requests>=2.31.0",         # For HTTP requests
+]
+
+gemini-cli = [
+    "google-auth>=2.29.0",           # Latest Google auth
+    "google-auth-oauthlib>=1.2.0",   # OAuth flow support
+    "google-cloud-aiplatform>=1.55.0", # Vertex AI integration
+    "google-api-python-client>=2.130.0", # Google API client
+]
+
+cloud-code = [
+    "google-auth>=2.29.0",           # Google Cloud authentication
+    "google-cloud-core>=2.4.1",     # Google Cloud core libraries
+    "google-cloud-resource-manager>=1.12.3", # Project management
+    "google-api-python-client>=2.130.0", # API client
+]
+
+codex = [
+    "openai>=1.35.0",         # OpenAI client for fallback
+    "tiktoken>=0.7.0",        # Token counting
+    "keyring>=24.3.1",        # Secure credential storage
+]
+
+# Combined provider dependencies
+providers = [
+    "uutel[claude-code,gemini-cli,cloud-code,codex]"
+]
+
+# Authentication dependencies (consolidated)
 auth = [
-    "google-auth>=2.15.0",
-    "google-auth-oauthlib>=1.0.0",
-    "google-cloud-core>=2.0.0",
+    "google-auth>=2.29.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-cloud-core>=2.4.1",
+    "keyring>=24.3.1",
+    "browser-cookie3>=0.19.1",
 ]
 
 # CLI dependencies
 cli = [
-    "typer>=0.9.0",
-    "rich>=13.0.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "click>=8.1.0",
 ]
 
 # Development tools
 dev = [
-    "ruff>=0.9.7",
-    "mypy>=1.15.0",
-    "pre-commit>=4.1.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+    "pre-commit>=3.7.0",
+    "bandit[toml]>=1.7.5",
+    "safety>=3.2.0",
+    "uv>=0.2.0",
 ]
 
 # Testing framework
 test = [
-    "pytest>=8.3.4",
-    "pytest-cov>=6.0.0",
-    "pytest-xdist>=3.6.1",
-    "pytest-asyncio>=0.25.3",
-    "pytest-mock>=3.15.0",
-    "coverage[toml]>=7.6.12",
+    "pytest>=8.2.0",
+    "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.6.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+    "coverage[toml]>=7.5.0",
+    "psutil>=5.9.0",  # Required for memory testing and profiling
+    "httpx[socks]>=0.27.0",  # Full httpx for testing
 ]
 
-# All optional dependencies
-all = ["uutel[auth,cli]"]
+# Documentation dependencies
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.25.0",
+    "mkdocs-gen-files>=0.5.0",
+]
+
+# Performance profiling
+profile = [
+    "py-spy>=0.3.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.1.0",
+]
+
+# All dependencies for complete development environment
+all = [
+    "uutel[providers,auth,cli,docs]"
+]
+
+# Full development environment
+full = [
+    "uutel[all,dev,test,profile]"
+]
 
 #------------------------------------------------------------------------------
 # BUILD SYSTEM CONFIGURATION
@@ -122,32 +219,118 @@ version-file = "src/uutel/_version.py"
 # HATCH ENVIRONMENTS
 #------------------------------------------------------------------------------
 
+# Default development environment
 [tool.hatch.envs.default]
-extra-dependencies = [
-    "ruff>=0.9.7",
-    "mypy>=1.15.0",
-    "pytest>=8.3.4",
-    "pytest-cov>=6.0.0",
-]
+features = ["test", "dev"]
+python = "3.12"
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "pytest --cov=src/uutel --cov-report=term-missing {args:tests}"
-lint = "ruff check {args:src/uutel tests}"
-format = "ruff format {args:src/uutel tests}"
-check = ["lint", "format"]
-typecheck = "mypy {args:src/uutel tests}"
+# Testing scripts
+test = "pytest -n auto -p pytest_asyncio -m 'not no_xdist' {args:tests}"
+test-async = "pytest -p pytest_asyncio -m no_xdist {args:tests}"
+test-single = "pytest -p pytest_asyncio {args:tests}"
+test-full = ["test", "test-async"]
+test-cov = "pytest -n auto -p pytest_asyncio --cov=src/uutel --cov-report=term-missing --cov-report=html {args:tests}"
+test-ci = "pytest -n auto -p pytest_asyncio -m 'not performance and not no_xdist' --maxfail=3 {args:tests}"
+test-performance = "pytest -p pytest_asyncio -m performance {args:tests}"
+test-examples = "python examples/litellm_integration.py && python examples/tool_calling_example.py"
+
+# Code quality scripts
+lint = "ruff check {args:src/uutel tests examples}"
+lint-fix = "ruff check --fix {args:src/uutel tests examples}"
+format = "ruff format {args:src/uutel tests examples}"
+format-check = "ruff format --check {args:src/uutel tests examples}"
+typecheck = "mypy src/uutel && mypy tests/ --explicit-package-bases --no-warn-unused-ignores"
+security = "bandit -r src/uutel -f json -o bandit-report.json"
+safety-check = "safety check --json --output safety-report.json"
+
+# Combined quality checks
+check = ["lint", "format-check", "typecheck"]
+check-all = ["lint", "format-check", "typecheck", "security", "safety-check", "test-cov"]
+
+# Build and publish scripts
+build = "hatch build"
+clean = "hatch clean && rm -rf .coverage htmlcov/ .pytest_cache/ *.egg-info/"
+clean-all = ["clean", "rm -rf .mypy_cache/ .ruff_cache/ __pycache__/ */__pycache__/"]
+
+# Development environment
+[tool.hatch.envs.dev]
+features = ["full"]  # Includes all dependencies
+python = "3.12"
+
+[tool.hatch.envs.dev.scripts]
+# Development workflow
+setup = ["clean-all", "hatch run install-dev"]
+install-dev = "pip install -e .[full]"
+pre-commit-install = "pre-commit install"
+pre-commit-run = "pre-commit run --all-files"
+
+# Documentation
+docs-build = "mkdocs build"
+docs-serve = "mkdocs serve --dev-addr 127.0.0.1:8000"
+docs-deploy = "mkdocs gh-deploy"
+
+# Performance profiling
+profile-memory = "mprof run python examples/litellm_integration.py && mprof plot"
+profile-cpu = "py-spy record -o cpu-profile.svg -- python examples/litellm_integration.py"
+
+# Testing different Python versions
+[tool.hatch.envs.test]
+features = ["test"]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.test.scripts]
+run = "pytest -n auto -p pytest_asyncio --maxfail=3 {args:tests}"
+
+# Minimal environment for CI
+[tool.hatch.envs.ci]
+features = ["test"]
+python = "3.12"
+
+[tool.hatch.envs.ci.scripts]
+test-minimal = "pytest -n auto -p pytest_asyncio --maxfail=1 -x {args:tests}"
+coverage = "pytest -n auto -p pytest_asyncio --cov=src/uutel --cov-report=xml --cov-fail-under=80 {args:tests}"
+
+# Provider-specific testing environments
+[tool.hatch.envs.codex]
+features = ["test", "codex"]
+
+[tool.hatch.envs.codex.scripts]
+test-codex = "pytest tests/test_codex_provider.py -v"
+example-codex = "python examples/litellm_integration.py"
+
+[tool.hatch.envs.providers]
+features = ["test", "providers"]
+
+[tool.hatch.envs.providers.scripts]
+test-all-providers = "pytest tests/test_*_provider.py -v"
 
 #------------------------------------------------------------------------------
 # TESTING CONFIGURATION
 #------------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers --strict-config --durations=10"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "asyncio: mark test as async",
+    "slow: mark test as slow running",
+    "integration: mark test as integration test",
+    "performance: mark test as performance sensitive",
+    "no_xdist: mark test to run without parallel execution",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+# pytest-asyncio specific configuration
+[tool.pytest_asyncio]
+asyncio_mode = "auto"
 
 #------------------------------------------------------------------------------
 # COVERAGE CONFIGURATION
@@ -208,6 +391,14 @@ disallow_untyped_decorators = true
 no_implicit_optional = true
 strict_optional = true
 
+# Enhanced strict type checking for maximum safety
+disallow_any_generics = true
+disallow_subclassing_any = true
+warn_redundant_casts = true
+warn_no_return = true
+no_implicit_reexport = true
+strict_equality = true
+
 # Allow some flexibility with third-party libraries
 ignore_missing_imports = true
 
@@ -218,8 +409,21 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = "uutel.core.base"
 # LiteLLM interface has complex type compatibility issues
-disable_error_code = ["override", "arg-type", "no-untyped-def", "type-arg"]
+disable_error_code = ["override", "arg-type", "no-untyped-def", "type-arg", "misc"]
 
 [[tool.mypy.overrides]]
 module = "litellm.*"
 ignore_errors = true
+
+#------------------------------------------------------------------------------
+# BANDIT SECURITY SCANNING CONFIGURATION
+#------------------------------------------------------------------------------
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]
+skips = ["B101"]  # Skip assert_used test since we use asserts in tests
+
+[dependency-groups]
+dev = [
+    "psutil>=7.1.0",
+]

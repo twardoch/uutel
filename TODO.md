@@ -1,279 +1,230 @@
-# UUTEL Implementation TODO List
+# UUTEL Implementation TODO
 
-> IMPORTANT: Whoever is modifying the code of this package, DO NOT ADD ANY "enterprise" features, verification, validation etc.. Keep focused on the main objective of the project, but develop documentation (Jekyll site in `docs` folder), develop `tests`, develop `examples`. And make the code robust, and test it with unit tests but also with realistic `examples`.  
+## Phase 1: Core Infrastructure (Days 1-2)
 
-## Naming Convention
-**IMPORTANT**: Follow the `{ProviderName}UU` naming pattern throughout the codebase:
-- Base class: `BaseUU` (extends LiteLLM's `BaseLLM`)
-- Claude Code provider: `ClaudeCodeUU`
-- Gemini CLI provider: `GeminiCLIUU`
-- Cloud Code provider: `CloudCodeUU`
-- Codex provider: `CodexUU`
+### Package Structure Setup
+- [ ] Create core package structure (uutel/, core/, providers/)
+- [ ] Setup __init__.py files with proper imports
+- [ ] Configure pyproject.toml with dependencies and metadata
+- [ ] Setup basic package imports and exports
 
-### Implementation Rules:
-- [ ] **ALL** provider classes must end with `UU`
-- [ ] **ALL** provider files should use the pattern `{provider_name}UU` for main classes
-- [ ] **ALL** authentication classes should use pattern `{ProviderName}Auth`
-- [ ] **ALL** transformation classes should use pattern `{ProviderName}Transform`
-- [ ] **ALL** model classes should use pattern `{ProviderName}Models`
-- [ ] Import statements should use: `from uutel.providers.{provider}.provider import {ProviderName}UU`
-
-## Phase 1: Core Infrastructure (Foundation)
-
-### Base Classes and Interfaces
-- [x] Create `core/base.py` with `BaseUU` class extending LiteLLM's `BaseLLM`
-- [x] Define common interfaces for authentication in `core/base.py`
-- [x] Define common interfaces for request/response transformation in `core/base.py`
-- [x] Create standardized error handling framework in `core/exceptions.py`
-- [x] Create standardized logging framework in `core/base.py`
-- [x] Implement utility functions for message format conversion in `core/utils.py`
+### Base Provider Class
+- [ ] Implement BaseUU class in core/base.py
+- [ ] Define abstract methods for completion, streaming, async operations
+- [ ] Add provider name and model identification
+- [ ] Implement LiteLLM BaseLLM inheritance pattern
 
 ### Authentication Framework
-- [x] Create `core/auth.py` with base authentication classes
-- [ ] Implement OAuth 2.0 handler for Claude Code and Cloud Code
-- [ ] Implement API key management for Gemini CLI
-- [ ] Implement token refresh and caching mechanisms
-- [ ] Implement secure credential storage and retrieval
-- [ ] Add environment variable support for all auth methods
+- [ ] Create BaseAuth abstract class in core/auth.py
+- [ ] Implement OAuthAuth class for OAuth 2.0 flows
+- [ ] Implement ApiKeyAuth class for API key authentication
+- [ ] Implement ServiceAccountAuth class for Google Cloud
+- [ ] Add token refresh and validation methods
 
-### Core Utilities
-- [x] Create HTTP client wrapper with retry logic in `core/utils.py`
-- [x] Implement response streaming utilities in `core/utils.py`
-- [x] Create message format transformation helpers in `core/utils.py`
-- [ ] Implement tool/function calling adapters in `core/utils.py`
-- [x] Add logging and monitoring utilities in `core/utils.py`
+### Message Transformation Utilities
+- [ ] Create transformation functions in core/utils.py
+- [ ] Implement transform_openai_to_provider function
+- [ ] Implement transform_provider_to_openai function
+- [ ] Implement handle_tool_calls function
+- [ ] Add streaming chunk transformation utilities
 
-## Phase 2: Provider Implementations
+### Exception Handling
+- [ ] Define custom exception classes in core/exceptions.py
+- [ ] Create provider-specific error types
+- [ ] Add authentication error handling
+- [ ] Implement error mapping from provider APIs
+
+## Phase 2: Provider Implementations (Days 3-6)
 
 ### Claude Code Provider
-- [ ] Create `providers/claude_code/` directory structure
-- [ ] Implement `providers/claude_code/auth.py` with OAuth authentication
-- [ ] Create `providers/claude_code/models.py` with request/response models
-- [ ] Implement `providers/claude_code/transforms.py` with message transformation
-- [ ] Create `providers/claude_code/provider.py` extending `BaseUU`
-- [ ] Implement MCP (Model Context Protocol) tool integration
-- [ ] Add support for Claude 3.5 Sonnet and Haiku models
-- [ ] Implement streaming chat completions
-- [ ] Add comprehensive error handling and mapping
+- [ ] Create providers/claude_code/ directory structure
+- [ ] Implement ClaudeCodeUU class in provider.py
+- [ ] Port OAuth authentication from AI SDK implementation
+- [ ] Implement browser-based auth flow
+- [ ] Add MCP tool calling support
+- [ ] Create message transformation for Claude API
+- [ ] Implement streaming support
+- [ ] Add error handling and retry logic
 
 ### Gemini CLI Provider
-- [ ] Create `providers/gemini_cli/` directory structure
-- [ ] Implement `providers/gemini_cli/auth.py` with multiple auth methods
-- [ ] Create `providers/gemini_cli/models.py` with request/response models
-- [ ] Implement `providers/gemini_cli/transforms.py` with message transformation
-- [ ] Create `providers/gemini_cli/provider.py` extending `BaseUU`
-- [ ] Add support for API key, Vertex AI, and OAuth authentication
-- [ ] Implement function calling with tool use
-- [ ] Add streaming responses with proper chunk handling
-- [ ] Add support for Gemini 2.0 Flash and Pro models
+- [ ] Create providers/gemini_cli/ directory structure
+- [ ] Implement GeminiCLIUU class in provider.py
+- [ ] Port multi-auth support (API key, Vertex AI, OAuth)
+- [ ] Integrate with Gemini CLI Core patterns
+- [ ] Implement advanced tool calling capabilities
+- [ ] Create message/tool transformation
+- [ ] Add streaming support
+- [ ] Handle different authentication types
 
-### Google Cloud Code Provider
-- [ ] Create `providers/cloud_code/` directory structure
-- [ ] Implement `providers/cloud_code/auth.py` with Google Cloud authentication
-- [ ] Create `providers/cloud_code/models.py` with request/response models
-- [ ] Implement `providers/cloud_code/transforms.py` with message transformation
-- [ ] Create `providers/cloud_code/provider.py` extending `BaseUU`
-- [ ] Implement Google Cloud service account authentication
-- [ ] Add Code Assist API integration
-- [ ] Implement project-based model access
-- [ ] Add safety settings and content filtering
+### Cloud Code Provider
+- [ ] Create providers/cloud_code/ directory structure
+- [ ] Implement CloudCodeUU class in provider.py
+- [ ] Port Google Cloud Code authentication
+- [ ] Implement Code Assist API integration
+- [ ] Add OAuth flow with project setup
+- [ ] Create message transformation for Cloud Code API
+- [ ] Implement service account authentication
+- [ ] Add streaming support
 
-### OpenAI Codex Provider
-- [ ] Create `providers/codex/` directory structure
-- [ ] Implement `providers/codex/auth.py` with Codex CLI token authentication
-- [ ] Create `providers/codex/models.py` with request/response models
-- [ ] Implement `providers/codex/transforms.py` with message transformation
-- [ ] Create `providers/codex/provider.py` extending `BaseUU`
-- [ ] Implement ChatGPT backend API integration
-- [ ] Add advanced reasoning capabilities (o1-style models)
-- [ ] Implement tool calling with function definitions
-- [ ] Add session token management and refresh
+### Codex Provider
+- [ ] Create providers/codex/ directory structure
+- [ ] Implement CodexUU class in provider.py
+- [ ] Port session token management from AI SDK
+- [ ] Implement token refresh mechanisms
+- [ ] Add Codex CLI compatibility
+- [ ] Create streaming implementation
+- [ ] Handle ChatGPT backend integration
+- [ ] Add fallback to OpenAI API key
 
-## Phase 3: LiteLLM Integration
+## Phase 3: LiteLLM Integration (Day 7)
 
 ### Provider Registration
-- [ ] Create main `__init__.py` with provider exports
-- [ ] Register all providers with LiteLLM's provider system
-- [ ] Implement model name mapping (e.g., `uutel/claude-code/claude-3-5-sonnet`)
-- [ ] Set up routing logic for different model prefixes
-- [ ] Configure default settings and parameters
-- [ ] Add provider discovery and validation
+- [ ] Update main __init__.py with provider imports
+- [ ] Configure litellm.custom_provider_map registration
+- [ ] Implement setup_model_routing function
+- [ ] Add model prefix routing (uutel/provider/model)
+- [ ] Test provider discovery and routing
 
-### Configuration Management
-- [ ] Add environment variable support for authentication
-- [ ] Implement configuration file support (YAML/JSON)
-- [ ] Add runtime provider configuration
-- [ ] Implement model-specific parameter handling
-- [ ] Create configuration validation
-- [ ] Add configuration documentation
+### Provider Factory Functions
+- [ ] Implement create_claude_code_provider factory
+- [ ] Implement create_gemini_cli_provider factory
+- [ ] Implement create_cloud_code_provider factory
+- [ ] Implement create_codex_provider factory
+- [ ] Add provider configuration validation
+- [ ] Test factory function creation and initialization
 
-### Testing and Validation
-- [x] Create `tests/conftest.py` with pytest configuration
-- [ ] Write unit tests for each provider in separate test files
-- [ ] Create integration tests with actual APIs
-- [ ] Add performance benchmarking tests
-- [ ] Implement error handling validation tests
-- [ ] Add authentication flow tests
+### LiteLLM Compatibility
+- [ ] Test completion API compatibility
+- [ ] Test streaming API compatibility
+- [ ] Test tool calling integration
+- [ ] Verify error handling matches LiteLLM patterns
+- [ ] Test async operation support
 
-## Phase 4: Advanced Features
+## Phase 4: Examples and Documentation (Day 8)
 
-### Tool Calling Standardization
-- [ ] Create unified function calling interface across providers
-- [ ] Implement tool schema validation and conversion
-- [ ] Add streaming tool responses
-- [ ] Implement error handling for tool failures
-- [ ] Add tool calling examples and documentation
+### Basic Usage Examples
+- [ ] Create examples/basic_usage.py
+- [ ] Add examples for all four providers
+- [ ] Test completion calls for each provider
+- [ ] Verify model routing works correctly
 
-### Caching and Performance
-- [ ] Implement response caching with TTL
-- [ ] Add request deduplication
-- [ ] Implement connection pooling
-- [ ] Add rate limiting and backoff
-- [ ] Create performance monitoring
+### Streaming Examples
+- [ ] Create examples/streaming_example.py
+- [ ] Test async streaming for each provider
+- [ ] Add error handling examples
+- [ ] Verify streaming chunk handling
 
-### Monitoring and Observability
-- [ ] Implement request/response logging
-- [ ] Add performance metrics collection
-- [ ] Integrate cost tracking
-- [ ] Create health check endpoints
-- [ ] Add debugging and troubleshooting tools
-
-## Package Setup and Distribution
-
-### Project Structure
-- [x] Create proper `pyproject.toml` with dependencies
-- [x] Set up package metadata and versioning
-- [ ] Create `requirements.txt` for development
-- [ ] Add `requirements-dev.txt` for development dependencies
-- [x] Create `.gitignore` for Python projects
-- [x] Add `LICENSE` file (MIT)
-
-### Dependencies
-- [x] Add core dependencies (litellm, httpx, aiohttp)
-- [x] Add authentication dependencies (google-auth, google-auth-oauthlib)
-- [x] Add validation dependencies (pydantic, pydantic-settings)
-- [x] Add CLI dependencies (typer, rich)
-- [x] Add logging dependencies (loguru)
-- [x] Add testing dependencies (pytest, pytest-asyncio, pytest-mock)
+### Tool Calling Examples
+- [ ] Create examples/tool_calling_example.py
+- [ ] Test function calling with each provider
+- [ ] Add complex tool scenarios
+- [ ] Verify tool result handling
 
 ### Documentation
-- [ ] Create comprehensive README.md
-- [ ] Write API documentation for each provider
-- [ ] Create authentication setup guides
-- [ ] Add usage examples for each provider
-- [ ] Write tool calling examples
-- [ ] Create troubleshooting guides
+- [ ] Update README.md with installation instructions
+- [ ] Add provider-specific configuration docs
+- [ ] Create API documentation
+- [ ] Add troubleshooting guide
 
-### Examples
-- [x] Create `examples/basic_usage.py`
-- [ ] Create `examples/streaming_example.py`
-- [ ] Create `examples/tool_calling_example.py`
-- [ ] Create `examples/auth_examples.py`
-- [ ] Add provider-specific examples
-- [ ] Create performance benchmarking examples
+## Phase 5: Testing and Validation (Day 9)
 
-### CI/CD and Quality
-- [ ] Set up GitHub Actions for testing
-- [ ] Add automated testing on multiple Python versions
-- [ ] Configure code quality checks (black, ruff, mypy)
-- [ ] Add security scanning
-- [ ] Set up automated PyPI publishing
-- [ ] Create release automation
+### Core Tests
+- [ ] Create conftest.py with test fixtures
+- [ ] Implement test_base.py for BaseUU functionality
+- [ ] Implement test_auth.py for authentication classes
+- [ ] Implement test_utils.py for transformation utilities
+- [ ] Implement test_exceptions.py for error handling
+- [ ] Implement test_providers_init.py for provider initialization
 
-### Testing Infrastructure
-- [ ] Set up test environment configuration
-- [ ] Create mock servers for testing
-- [ ] Add integration test configuration
-- [ ] Create performance test setup
-- [ ] Add continuous integration testing
-- [ ] Set up test coverage reporting
+### Provider-Specific Tests
+- [ ] Create test_claude_code.py with mocked API tests
+- [ ] Create test_gemini_cli.py with mocked API tests
+- [ ] Create test_cloud_code.py with mocked API tests
+- [ ] Create test_codex.py with mocked API tests
+- [ ] Test authentication flows (mocked)
+- [ ] Test message transformation
+- [ ] Test tool calling functionality
 
-## Documentation and Deployment
+### Integration Tests
+- [ ] Create test_integration.py for LiteLLM integration
+- [ ] Test provider registration with LiteLLM
+- [ ] Test model routing and discovery
+- [ ] Test error propagation
+- [ ] Test streaming integration
 
-### Package Distribution
-- [ ] Prepare for PyPI package publication
-- [ ] Implement semantic versioning
-- [ ] Create GitHub releases with changelog
-- [ ] Build Docker image for containerized usage
-- [ ] Add installation instructions
+### Test Coverage and Quality
+- [ ] Run pytest with coverage reporting
+- [ ] Ensure >90% test coverage
+- [ ] Run mypy for type checking
+- [ ] Verify all tests pass
+- [ ] Test examples run successfully
 
-### API Documentation
-- [ ] Document provider-specific configuration
-- [ ] Write authentication setup guides
-- [ ] Create usage examples for each provider
-- [ ] Document tool calling examples
-- [ ] Add configuration reference
+## Phase 6: Package Distribution (Day 10)
 
-### Integration Guides
-- [ ] Write LiteLLM integration steps
-- [ ] Create environment setup guide
-- [ ] Provide configuration file examples
-- [ ] Write troubleshooting guides
-- [ ] Add migration guides
+### Package Configuration
+- [ ] Finalize pyproject.toml with all metadata
+- [ ] Configure optional dependencies for each provider
+- [ ] Add entry points if needed
+- [ ] Test package building with `uv build`
 
-### Developer Documentation
-- [ ] Write contributing guidelines
-- [ ] Document code style standards
-- [ ] Create testing procedures
-- [ ] Document release process
-- [ ] Add architecture documentation
+### Quality Assurance
+- [ ] Run code formatting with ruff
+- [ ] Run linting with ruff
+- [ ] Fix any type checking issues
+- [ ] Ensure all examples work
+- [ ] Test installation from built package
 
-## Quality Improvements (Immediate Priority)
+### Documentation Finalization
+- [ ] Update DEPENDENCIES.md with dependency rationale
+- [ ] Create migration guide from existing implementations
+- [ ] Add API reference documentation
+- [ ] Update CHANGELOG.md with initial release
 
-### Phase 1 Quality Tasks
-- [x] Create standardized error handling framework in `core/exceptions.py`
-- [x] Add comprehensive pytest configuration in `tests/conftest.py`
-- [x] Create basic usage examples and improve test coverage to >85%
+### Release Preparation
+- [ ] Tag version 1.0.0
+- [ ] Test package installation in clean environment
+- [ ] Verify all providers work with LiteLLM
+- [ ] Create release notes
 
-## Validation and Quality Assurance
+## Implementation Guidelines
 
-### Code Quality
-- [ ] Achieve >90% test coverage
-- [ ] Pass all linting checks (black, ruff, mypy)
-- [ ] Validate type hints throughout codebase
-- [ ] Ensure proper error handling
-- [ ] Validate documentation completeness
+### Code Quality Checklist
+- [ ] All functions under 20 lines
+- [ ] All files under 200 lines
+- [ ] No enterprise patterns or abstractions
+- [ ] Clear, readable code with minimal complexity
+- [ ] Proper type hints throughout
+- [ ] Comprehensive docstrings
 
-### Performance Validation
-- [ ] Ensure <200ms overhead per request
-- [ ] Test support for 100+ concurrent requests
-- [ ] Validate proper memory management
-- [ ] Test efficient connection pooling
-- [ ] Benchmark against direct provider APIs
+### Testing Requirements
+- [ ] Unit tests for all public methods
+- [ ] Integration tests for LiteLLM compatibility
+- [ ] Mocked authentication tests
+- [ ] Message transformation tests
+- [ ] Streaming functionality tests
+- [ ] Tool calling tests
+- [ ] Error handling tests
 
-### Integration Validation
-- [ ] Test with actual provider APIs
-- [ ] Validate authentication flows
-- [ ] Test streaming responses
-- [ ] Validate tool calling functionality
-- [ ] Test error handling and recovery
+### Dependencies Validation
+- [ ] Minimal core dependencies (litellm, httpx, pydantic)
+- [ ] Optional provider-specific dependencies
+- [ ] No unnecessary enterprise libraries
+- [ ] Compatible versions across dependencies
 
-### Security Validation
-- [ ] Validate secure credential handling
-- [ ] Test token refresh mechanisms
-- [ ] Validate request/response encryption
-- [ ] Test rate limiting effectiveness
-- [ ] Perform security audit
+### Performance Verification
+- [ ] Provider initialization under 100ms
+- [ ] Request transformation under 10ms
+- [ ] No memory leaks in streaming scenarios
+- [ ] Graceful network timeout handling
 
-## Future Enhancements (Optional)
-
-### Additional Features
-- [ ] Add response caching layer
-- [ ] Implement load balancing
-- [ ] Add failover mechanisms
-- [ ] Create monitoring dashboard
-- [ ] Add cost tracking and reporting
-
-### Community Features
-- [ ] Set up contribution guidelines
-- [ ] Create plugin system for third-party providers
-- [ ] Add community documentation
-- [ ] Set up issue templates
-- [ ] Create contribution recognition system
-
-### Enterprise Features
-- [ ] Add team management features
-- [ ] Implement audit logging
-- [ ] Add compliance features
-- [ ] Create enterprise configuration options
-- [ ] Add advanced monitoring and alerting
+## Success Criteria
+- [ ] All four providers registered with LiteLLM
+- [ ] Completion and streaming work for each provider
+- [ ] Tool calling functions correctly where supported
+- [ ] Authentication flows work for all auth types
+- [ ] Error handling provides clear messages
+- [ ] Message transformation maintains fidelity
+- [ ] Package installable via pip/uv
+- [ ] Examples run without errors
+- [ ] Tests pass with >90% coverage
+- [ ] Compatible with LiteLLM Router and proxy

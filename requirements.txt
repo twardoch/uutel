@@ -1,0 +1,11 @@
+# this_file: requirements.txt
+# Core production requirements for UUTEL package
+# These are the minimum dependencies needed to run UUTEL
+
+# Core dependencies
+litellm>=1.70.0
+httpx>=0.25.0
+aiohttp>=3.8.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+loguru>=0.7.0

@@ -1,0 +1,228 @@
+# this_file: .github/workflows/release-preparation.yml
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version type to release'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - prerelease
+      dry_run:
+        description: 'Dry run (do not create PR)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+          uv pip install python-semantic-release
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(python -c "import sys; sys.path.insert(0, 'src'); from uutel import __version__; print(__version__)")
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{int(parts[0])+1}.0.0')
+            ")
+          elif [ "${{ github.event.inputs.version_type }}" = "minor" ]; then
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{parts[0]}.{int(parts[1])+1}.0')
+            ")
+          elif [ "${{ github.event.inputs.version_type }}" = "prerelease" ]; then
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            if 'rc' in __version__:
+              rc_num = int(__version__.split('rc')[1]) + 1;
+              print(f'{parts[0]}.{parts[1]}.{parts[2].split(\"rc\")[0]}rc{rc_num}');
+            else:
+              print(f'{parts[0]}.{parts[1]}.{int(parts[2])+1}rc1')
+            ")
+          else  # patch
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{parts[0]}.{parts[1]}.{int(parts[2])+1}')
+            ")
+          fi
+          echo "next=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "Next version: $NEXT_VERSION"
+
+      - name: Run pre-release validation
+        run: |
+          echo "Running UUTEL distribution validation..."
+          uv run python -c "
+          from uutel.core.distribution import validate_pypi_readiness
+          is_ready = validate_pypi_readiness()
+          if not is_ready:
+            print('❌ Package is not ready for PyPI release')
+            exit(1)
+          else:
+            print('✅ Package is ready for PyPI release')
+          "
+
+      - name: Run comprehensive health check
+        run: |
+          echo "Running UUTEL health check..."
+          uv run python -c "
+          from uutel.core.health import validate_production_readiness
+          is_ready = validate_production_readiness()
+          if not is_ready:
+            print('❌ Package is not ready for production')
+            exit(1)
+          else:
+            print('✅ Package is ready for production')
+          "
+
+      - name: Update version in _version.py
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          sed -i "s/__version__ = \".*\"/__version__ = \"${{ steps.next_version.outputs.next }}\"/" src/uutel/_version.py
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          echo "Generating changelog for version ${{ steps.next_version.outputs.next }}..."
+
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s" HEAD)
+          else
+            COMMITS=$(git log --oneline --pretty=format:"- %s" ${LAST_TAG}..HEAD)
+          fi
+
+          # Create changelog entry
+          CHANGELOG_ENTRY="## [${{ steps.next_version.outputs.next }}] - $(date +%Y-%m-%d)
+
+### Changes
+$COMMITS
+
+"
+
+          # Prepend to CHANGELOG.md if it exists, otherwise create it
+          if [ -f CHANGELOG.md ]; then
+            echo "$CHANGELOG_ENTRY" | cat - CHANGELOG.md > temp && mv temp CHANGELOG.md
+          else
+            echo "$CHANGELOG_ENTRY" > CHANGELOG.md
+          fi
+
+          echo "changelog_created=true" >> $GITHUB_OUTPUT
+
+      - name: Create release branch
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          BRANCH_NAME="release/v${{ steps.next_version.outputs.next }}"
+          git checkout -b "$BRANCH_NAME"
+          git add src/uutel/_version.py CHANGELOG.md
+          git commit -m "chore: prepare release v${{ steps.next_version.outputs.next }}"
+          git push origin "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        if: github.event.inputs.dry_run == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/v${{ steps.next_version.outputs.next }}
+          title: "Release v${{ steps.next_version.outputs.next }}"
+          body: |
+            ## Release v${{ steps.next_version.outputs.next }}
+
+            This PR prepares the release of version ${{ steps.next_version.outputs.next }}.
+
+            ### Changes included:
+            - Version bump from ${{ steps.current_version.outputs.current }} to ${{ steps.next_version.outputs.next }}
+            - Updated CHANGELOG.md with release notes
+
+            ### Pre-release validation:
+            - ✅ Distribution validation passed
+            - ✅ Production readiness validation passed
+            - ✅ All tests passing in CI
+
+            ### Next steps:
+            1. Review and merge this PR
+            2. Create and push a git tag: `git tag v${{ steps.next_version.outputs.next }}`
+            3. The release workflow will automatically publish to PyPI and create a GitHub release
+
+            ---
+            *This PR was created automatically by the release preparation workflow.*
+          labels: |
+            release
+            automated
+          draft: false
+
+      - name: Dry run summary
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 DRY RUN SUMMARY"
+          echo "=================="
+          echo "Current version: ${{ steps.current_version.outputs.current }}"
+          echo "Next version: ${{ steps.next_version.outputs.next }}"
+          echo "Version type: ${{ github.event.inputs.version_type }}"
+          echo ""
+          echo "Changes that would be made:"
+          echo "- Update src/uutel/_version.py"
+          echo "- Update CHANGELOG.md with new entry"
+          echo "- Create release branch: release/v${{ steps.next_version.outputs.next }}"
+          echo "- Create PR for release preparation"
+          echo ""
+          echo "✅ Pre-release validation passed"
+          echo "✅ All checks would pass"

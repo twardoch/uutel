@@ -1,0 +1,200 @@
+# this_file: .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_SYSTEM_PYTHON: 1
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+        exclude:
+          # Reduce matrix size for faster feedback - test main combinations
+          - os: macos-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.10"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Cache UV dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/uv
+          .venv
+        key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+        restore-keys: |
+          uv-${{ runner.os }}-${{ matrix.python-version }}-
+          uv-${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --frozen
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest --cov=src/uutel --cov-report=xml --cov-report=term-missing tests/ -x --tb=short
+
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Cache UV dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/uv
+          .venv
+        key: quality-uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+        restore-keys: |
+          quality-uv-${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --frozen
+
+    - name: Run comprehensive quality checks
+      run: |
+        python scripts/quality-check.py
+
+  examples:
+    name: Run Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Cache UV dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/uv
+          .venv
+        key: examples-uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+        restore-keys: |
+          examples-uv-${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --frozen
+
+    - name: Run examples in parallel
+      run: |
+        cd examples
+        # Run examples in background and collect exit codes
+        uv run python basic_usage.py &
+        PID1=$!
+        uv run python tool_calling_example.py &
+        PID2=$!
+        uv run python streaming_example.py &
+        PID3=$!
+
+        # Wait for all and check exit codes
+        wait $PID1 && wait $PID2 && wait $PID3
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Cache build tools
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: build-tools-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          build-tools-${{ runner.os }}-
+
+    - name: Build package
+      run: |
+        uv build
+
+    - name: Check package
+      run: |
+        uv tool run --from twine twine check dist/*
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ github.sha }}
+        path: dist/
+        retention-days: 7

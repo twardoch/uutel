@@ -8,13 +8,29 @@ and validation functions.
 
 from __future__ import annotations
 
+# Standard library imports
 import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
+# Third-party imports
 import httpx
-from loguru import logger
+
+# Local imports
+from .exceptions import UUTELError
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
+
+# Pre-compiled regex patterns for performance optimization
+_MODEL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+_INVALID_CHARS_PATTERN = re.compile(r"[\s\n\r\t\0]")
+
+# Performance optimization: Cache for frequently validated models
+_MODEL_VALIDATION_CACHE: dict[str, bool] = {}
+_PROVIDER_EXTRACTION_CACHE: dict[str, tuple[str, str]] = {}
+_CACHE_SIZE_LIMIT = 1000
 
 
 @dataclass
@@ -52,19 +68,19 @@ def transform_openai_to_provider(
     Returns:
         List of messages in provider-specific format
     """
+    # Early return for empty messages (most common optimization)
     if not messages:
         return []
 
     logger.debug(f"Transforming {len(messages)} messages for provider: {provider_name}")
 
-    # Base implementation: pass-through
-    # Providers can extend this for custom transformation
-    transformed = []
-    for message in messages:
-        if isinstance(message, dict) and "role" in message and "content" in message:
-            transformed.append({"role": message["role"], "content": message["content"]})
-
-    return transformed
+    # Performance optimization: Pre-allocate list and use list comprehension
+    # Base implementation: pass-through with filtering
+    return [
+        {"role": msg["role"], "content": msg["content"]}
+        for msg in messages
+        if isinstance(msg, dict) and "role" in msg and "content" in msg
+    ]
 
 
 def transform_provider_to_openai(
@@ -83,6 +99,7 @@ def transform_provider_to_openai(
     Returns:
         List of messages in OpenAI format
     """
+    # Early return for empty messages (most common optimization)
     if not messages:
         return []
 
@@ -90,14 +107,13 @@ def transform_provider_to_openai(
         f"Transforming {len(messages)} messages from provider: {provider_name}"
     )
 
-    # Base implementation: pass-through
-    # Providers can extend this for custom transformation
-    transformed = []
-    for message in messages:
-        if isinstance(message, dict) and "role" in message and "content" in message:
-            transformed.append({"role": message["role"], "content": message["content"]})
-
-    return transformed
+    # Performance optimization: Use list comprehension instead of loop
+    # Base implementation: pass-through with filtering
+    return [
+        {"role": msg["role"], "content": msg["content"]}
+        for msg in messages
+        if isinstance(msg, dict) and "role" in msg and "content" in msg
+    ]
 
 
 def create_http_client(
@@ -126,15 +142,15 @@ def create_http_client(
 
     # Create client with appropriate settings
     if async_client:
-        logger.debug("Creating async HTTP client")
+        logger.debug(f"Creating async HTTP client with timeout: {timeout}s")
         return httpx.AsyncClient(timeout=timeout, follow_redirects=True)
     else:
-        logger.debug("Creating sync HTTP client")
+        logger.debug(f"Creating sync HTTP client with timeout: {timeout}s")
         return httpx.Client(timeout=timeout, follow_redirects=True)
 
 
 def validate_model_name(model: Any) -> bool:
-    """Validate a model name.
+    """Validate a model name with performance optimizations.
 
     Checks if a model name is valid according to UUTEL conventions.
     Valid model names:
@@ -149,31 +165,51 @@ def validate_model_name(model: Any) -> bool:
     Returns:
         True if model name is valid, False otherwise
     """
-    if not isinstance(model, str) or not model:
+    # Handle None and empty cases (fastest checks first)
+    if model is None or model == "":
         return False
 
-    # Check for spaces (always invalid)
-    if " " in model:
+    # Ensure it's a string (fast type check)
+    if not isinstance(model, str):
         return False
 
-    # Allow provider prefixes like "uutel/claude-code/model-name"
-    if "/" in model:
-        parts = model.split("/")
-        # Must have at least 3 parts for valid UUTEL prefix: "uutel/provider/model"
-        if len(parts) < 3 or parts[0] != "uutel":
-            return False
-        # Validate each part
-        for part in parts:
-            if not part or not re.match(r"^[a-zA-Z0-9._-]+$", part):
-                return False
-        return True
+    # Performance optimization: Check cache first for repeated validations
+    if model in _MODEL_VALIDATION_CACHE:
+        return _MODEL_VALIDATION_CACHE[model]
 
-    # Validate simple model name
-    return bool(re.match(r"^[a-zA-Z0-9._-]+$", model))
+    try:
+        # Prevent excessively long names (early optimization)
+        if len(model) > 200:
+            result = False
+        # Use pre-compiled regex for invalid characters (faster than char iteration)
+        elif _INVALID_CHARS_PATTERN.search(model):
+            result = False
+        # Handle provider prefixes with optimized string operations
+        elif "/" in model:
+            parts = model.split("/", 2)  # Limit splits for efficiency
+            # Must have at least 3 parts for valid UUTEL prefix: "uutel/provider/model"
+            if len(parts) < 3 or parts[0] != "uutel":
+                result = False
+            else:
+                # Validate each part using pre-compiled pattern (optimized loop)
+                result = all(part and _MODEL_NAME_PATTERN.match(part) for part in parts)
+        else:
+            # Validate simple model name using pre-compiled pattern
+            result = bool(_MODEL_NAME_PATTERN.match(model))
+
+        # Cache the result to avoid repeated validation
+        if len(_MODEL_VALIDATION_CACHE) < _CACHE_SIZE_LIMIT:
+            _MODEL_VALIDATION_CACHE[model] = result
+
+        return result
+
+    except (AttributeError, TypeError, re.error):
+        # Handle any unexpected errors during validation
+        return False
 
 
 def extract_provider_from_model(model: str) -> tuple[str, str]:
-    """Extract provider and model from a full model string.
+    """Extract provider and model from a full model string with caching.
 
     Parses model strings like "uutel/claude-code/claude-3-5-sonnet" to
     extract the provider name and actual model name.
@@ -184,24 +220,55 @@ def extract_provider_from_model(model: str) -> tuple[str, str]:
     Returns:
         Tuple of (provider_name, model_name)
     """
-    if "/" not in model:
-        return "unknown", model
+    # Handle None and empty cases (fastest checks first)
+    if not model:
+        return "unknown", ""
 
-    parts = model.split("/")
-    if len(parts) < 3 or parts[0] != "uutel":
-        return "unknown", model
+    if not isinstance(model, str):
+        return "unknown", str(model)
 
-    provider_name = parts[1]
-    model_name = "/".join(parts[2:])  # Handle nested model names
+    # Performance optimization: Check cache first for repeated extractions
+    if model in _PROVIDER_EXTRACTION_CACHE:
+        return _PROVIDER_EXTRACTION_CACHE[model]
 
-    return provider_name, model_name
+    try:
+        # Handle simple model name without provider prefix (common case)
+        if "/" not in model:
+            result = ("unknown", model)
+        else:
+            # Optimized split with limit for better performance
+            parts = model.split("/", 2)
+
+            # Must have at least 3 parts and start with "uutel"
+            if len(parts) < 3 or parts[0] != "uutel":
+                result = ("unknown", model)
+            else:
+                # Extract provider and model names
+                provider_name = parts[1] if parts[1] else "unknown"
+                model_name = parts[2] if parts[2] else ""
+
+                # Ensure extracted values are valid
+                if not provider_name or not model_name:
+                    result = ("unknown", model)
+                else:
+                    result = (provider_name, model_name)
+
+        # Cache the result to avoid repeated extraction
+        if len(_PROVIDER_EXTRACTION_CACHE) < _CACHE_SIZE_LIMIT:
+            _PROVIDER_EXTRACTION_CACHE[model] = result
+
+        return result
+
+    except (AttributeError, IndexError, TypeError):
+        # Handle any unexpected errors during extraction
+        return "unknown", str(model)
 
 
-def format_error_message(error: Exception, provider: str) -> str:
+def format_error_message(error: Exception | None, provider: Any) -> str:
     """Format error message for consistent error reporting.
 
     Creates standardized error messages that include provider context
-    and relevant error details.
+    and relevant error details. Enhanced to utilize UUTEL error context.
 
     Args:
         error: The exception that occurred
@@ -210,10 +277,123 @@ def format_error_message(error: Exception, provider: str) -> str:
     Returns:
         Formatted error message string
     """
-    error_type = type(error).__name__
-    error_msg = str(error)
+    try:
+        # Handle None or invalid error objects
+        if error is None:
+            return f"[{provider or 'unknown'}] Unknown error occurred"
 
-    return f"[{provider}] {error_type}: {error_msg}"
+        # Get error type and message safely
+        error_type = (
+            type(error).__name__ if hasattr(error, "__class__") else "Exception"
+        )
+
+        # Get error message with fallback
+        try:
+            error_msg = str(error) if error else "No error message available"
+        except Exception:
+            error_msg = "Error occurred but message could not be retrieved"
+
+        # Sanitize provider name
+        provider = provider or "unknown"
+        if not isinstance(provider, str):
+            provider = str(provider)
+
+        # If it's a UUTEL error, use its enhanced formatting
+        if isinstance(error, UUTELError):
+            return str(error)  # Uses the enhanced __str__ method
+
+        # For non-UUTEL errors, use enhanced formatting with better context
+        if not error_msg or error_msg.strip() == "":
+            error_msg = f"Empty {error_type} occurred"
+
+        return f"[{provider}] {error_type}: {error_msg}"
+
+    except Exception:
+        # Ultimate fallback if everything goes wrong
+        return f"[{provider or 'unknown'}] Critical error in error formatting"
+
+
+def _create_empty_debug_info() -> dict[str, Any]:
+    """Create empty debug info structure."""
+    return {
+        "error_type": "NoneError",
+        "message": "No error provided",
+        "provider": None,
+        "error_code": None,
+        "request_id": None,
+        "timestamp": None,
+        "debug_context": {},
+        "traceback": None,
+    }
+
+
+def _extract_error_attributes(error: Exception) -> dict[str, Any]:
+    """Extract attributes from exception object."""
+    debug_context: dict[str, Any] = {}
+    try:
+        if hasattr(error, "args") and error.args:
+            debug_context["args"] = list(error.args)
+        if hasattr(error, "__dict__"):
+            for key, value in error.__dict__.items():
+                if not key.startswith("_"):
+                    try:
+                        debug_context[key] = str(value)
+                    except Exception:
+                        debug_context[key] = f"<{type(value).__name__}>"
+    except Exception as e:
+        logger.debug(f"Failed to extract exception attributes: {e}")
+    return debug_context
+
+
+def _create_standard_debug_info(error: Exception) -> dict[str, Any]:
+    """Create debug info for standard (non-UUTEL) errors."""
+    error_type = type(error).__name__ if hasattr(error, "__class__") else "Exception"
+
+    try:
+        message = str(error) if error else "No error message available"
+    except Exception:
+        message = "Error message could not be retrieved"
+
+    debug_context = _extract_error_attributes(error)
+
+    return {
+        "error_type": error_type,
+        "message": message,
+        "provider": None,
+        "error_code": getattr(error, "code", None),
+        "request_id": getattr(error, "request_id", None),
+        "timestamp": None,
+        "debug_context": debug_context,
+        "traceback": None,
+    }
+
+
+def get_error_debug_info(error: Exception | None) -> dict[str, Any]:
+    """Get comprehensive debugging information from an error."""
+    try:
+        if error is None:
+            return _create_empty_debug_info()
+
+        # Try UUTEL error's built-in debug info first
+        if isinstance(error, UUTELError):
+            try:
+                return error.get_debug_info()
+            except Exception as e:
+                logger.warning(f"Failed to get debug info from UUTEL error: {e}")
+
+        return _create_standard_debug_info(error)
+
+    except Exception:
+        return {
+            "error_type": "DebugInfoError",
+            "message": "Failed to extract debug information",
+            "provider": None,
+            "error_code": None,
+            "request_id": None,
+            "timestamp": None,
+            "debug_context": {},
+            "traceback": None,
+        }
 
 
 # Tool calling utilities
@@ -234,10 +414,11 @@ def validate_tool_schema(tool: Any) -> bool:
     Returns:
         True if tool schema is valid, False otherwise
     """
+    # Performance optimization: Early returns for most common failures
     if not isinstance(tool, dict):
         return False
 
-    # Check required top-level fields
+    # Check required top-level fields (optimized access)
     if tool.get("type") != "function":
         return False
 
@@ -245,20 +426,20 @@ def validate_tool_schema(tool: Any) -> bool:
     if not isinstance(function, dict):
         return False
 
-    # Check required function fields
-    if not isinstance(function.get("name"), str) or not function["name"]:
+    # Check required function fields with optimized lookups
+    name = function.get("name")
+    if not isinstance(name, str) or not name:
         return False
 
-    if not isinstance(function.get("description"), str) or not function["description"]:
+    description = function.get("description")
+    if not isinstance(description, str) or not description:
         return False
 
     # Parameters are optional, but if present must be valid
     parameters = function.get("parameters")
     if parameters is not None:
-        if not isinstance(parameters, dict):
-            return False
-        # Basic JSON schema validation - must have type field
-        if parameters.get("type") != "object":
+        # Fast validation for parameters
+        if not isinstance(parameters, dict) or parameters.get("type") != "object":
             return False
 
     return True
@@ -356,7 +537,7 @@ def create_tool_call_response(
     return {"tool_call_id": tool_call_id, "role": "tool", "content": content}
 
 
-def extract_tool_calls_from_response(response: dict[str, Any]) -> list[dict[str, Any]]:
+def extract_tool_calls_from_response(response: Any) -> list[dict[str, Any]]:
     """Extract tool calls from a provider response.
 
     Parses provider response to extract any tool/function calls that
@@ -389,3 +570,229 @@ def extract_tool_calls_from_response(response: dict[str, Any]) -> list[dict[str,
         return []
 
     return tool_calls
+
+
+# Environment Detection Utilities for Cross-Platform Test Reliability
+@dataclass
+class EnvironmentInfo:
+    """Comprehensive environment information for test reliability."""
+
+    platform: str = ""
+    is_ci: bool = False
+    is_github_actions: bool = False
+    is_parallel_execution: bool = False
+    python_version: str = ""
+    is_windows: bool = False
+    is_macos: bool = False
+    is_linux: bool = False
+    is_docker: bool = False
+    cpu_count: int = 1
+    available_memory_gb: float = 0.0
+    is_low_resource: bool = False
+
+
+def detect_execution_environment() -> EnvironmentInfo:
+    """Detect comprehensive execution environment information.
+
+    Returns:
+        EnvironmentInfo object with detected environment details
+    """
+    import os
+    import platform
+    import sys
+
+    env_info = EnvironmentInfo()
+
+    # Platform detection
+    env_info.platform = platform.system()
+    env_info.is_windows = env_info.platform == "Windows"
+    env_info.is_macos = env_info.platform == "Darwin"
+    env_info.is_linux = env_info.platform == "Linux"
+
+    # Python version
+    env_info.python_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
+
+    # CI environment detection
+    ci_indicators = [
+        "CI",
+        "GITHUB_ACTIONS",
+        "TRAVIS",
+        "CIRCLECI",
+        "JENKINS_URL",
+        "BUILDKITE",
+        "BITBUCKET_BUILD_NUMBER",
+        "GITLAB_CI",
+        "AZURE_PIPELINES",
+    ]
+    env_info.is_ci = any(os.getenv(indicator) for indicator in ci_indicators)
+    env_info.is_github_actions = bool(os.getenv("GITHUB_ACTIONS"))
+
+    # Parallel execution detection
+    env_info.is_parallel_execution = (
+        os.getenv("PYTEST_XDIST_WORKER") is not None
+        or os.getenv("PYTEST_CURRENT_TEST") is not None
+    )
+
+    # Docker detection
+    env_info.is_docker = os.path.exists("/.dockerenv") or (
+        os.path.exists("/proc/self/cgroup")
+        and any(
+            "docker" in line
+            for line in open("/proc/self/cgroup").readlines()
+            if os.path.exists("/proc/self/cgroup")
+        )
+    )
+
+    # Resource detection
+    try:
+        import psutil
+
+        env_info.cpu_count = psutil.cpu_count()
+        env_info.available_memory_gb = psutil.virtual_memory().total / (1024**3)
+        env_info.is_low_resource = (
+            env_info.available_memory_gb < 2.0 or env_info.cpu_count < 2
+        )
+    except ImportError:
+        # Fallback without psutil
+        env_info.cpu_count = os.cpu_count() or 1
+        env_info.is_low_resource = env_info.cpu_count < 2
+
+    return env_info
+
+
+def get_platform_specific_timeout(
+    base_timeout: float, operation_type: str = "default"
+) -> float:
+    """Get platform and environment-specific timeout values.
+
+    Args:
+        base_timeout: Base timeout in seconds
+        operation_type: Type of operation ("network", "compute", "io", "default")
+
+    Returns:
+        Adjusted timeout in seconds
+    """
+    env_info = detect_execution_environment()
+    timeout = base_timeout
+
+    # CI environment adjustments
+    if env_info.is_ci:
+        timeout *= 3.0  # CI environments are often resource-constrained
+
+    # Parallel execution adjustments
+    if env_info.is_parallel_execution:
+        timeout *= 2.0  # Resource contention
+
+    # Platform-specific adjustments
+    if env_info.is_windows:
+        timeout *= 1.5  # Windows can be slower for some operations
+    elif env_info.is_docker:
+        timeout *= 1.3  # Docker overhead
+
+    # Operation-specific adjustments
+    operation_multipliers = {
+        "network": 2.0,  # Network operations can be slower
+        "compute": 1.0,  # CPU operations are typically consistent
+        "io": 1.5,  # I/O operations can vary
+        "default": 1.0,
+    }
+    timeout *= operation_multipliers.get(operation_type, 1.0)
+
+    # Low resource environment adjustments
+    if env_info.is_low_resource:
+        timeout *= 2.0
+
+    return timeout
+
+
+def get_cross_platform_temp_dir() -> str:
+    """Get platform-appropriate temporary directory.
+
+    Returns:
+        Path to temporary directory
+    """
+    import tempfile
+
+    return tempfile.gettempdir()
+
+
+def is_asyncio_event_loop_safe() -> bool:
+    """Check if asyncio event loop operations are safe in current environment.
+
+    Returns:
+        True if asyncio operations are safe, False otherwise
+    """
+    try:
+        import asyncio
+
+        # Check if we're already in an event loop
+        try:
+            asyncio.get_running_loop()
+            return False  # Already in a loop, creating new ones can be problematic
+        except RuntimeError:
+            return True  # No running loop, safe to create new ones
+    except ImportError:
+        return False
+
+
+def get_environment_diagnostics() -> dict[str, Any]:
+    """Get comprehensive environment diagnostics for debugging.
+
+    Returns:
+        Dictionary containing environment diagnostics
+    """
+    import os
+    import platform
+    import sys
+
+    env_info = detect_execution_environment()
+
+    diagnostics = {
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+            "architecture": platform.architecture(),
+        },
+        "python": {
+            "version": sys.version,
+            "executable": sys.executable,
+            "version_info": {
+                "major": sys.version_info.major,
+                "minor": sys.version_info.minor,
+                "micro": sys.version_info.micro,
+            },
+        },
+        "environment": {
+            "is_ci": env_info.is_ci,
+            "is_github_actions": env_info.is_github_actions,
+            "is_parallel_execution": env_info.is_parallel_execution,
+            "is_docker": env_info.is_docker,
+            "is_low_resource": env_info.is_low_resource,
+        },
+        "resources": {
+            "cpu_count": env_info.cpu_count,
+            "available_memory_gb": env_info.available_memory_gb,
+        },
+        "ci_variables": {
+            key: value
+            for key, value in os.environ.items()
+            if any(
+                indicator in key.upper()
+                for indicator in [
+                    "CI",
+                    "GITHUB",
+                    "TRAVIS",
+                    "CIRCLE",
+                    "JENKINS",
+                    "BUILD",
+                ]
+            )
+        },
+    }
+
+    return diagnostics

@@ -1,19 +1,182 @@
 repos:
+  # Ruff linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.4
+    rev: v0.13.2
     hooks:
       - id: ruff
-        args: [--fix]
+        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
         args: [--respect-gitignore]
+
+  # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+      - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
+      - id: check-json
       - id: check-added-large-files
       - id: debug-statements
       - id: check-case-conflict
       - id: mixed-line-ending
-        args: [--fix=lf] 
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-docstring-first
+
+  # MyPy type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        name: mypy-source
+        additional_dependencies: [httpx, pydantic, loguru]
+        args: [--ignore-missing-imports, --no-strict-optional]
+        files: ^src/
+      - id: mypy
+        name: mypy-tests
+        additional_dependencies: [httpx, pydantic, loguru, pytest, pytest-mock]
+        args: [--ignore-missing-imports, --no-strict-optional, --explicit-package-bases]
+        files: ^tests/
+
+  # Security scanning with bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+
+  # Python import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        args: [--profile, black, --line-length, "88"]
+
+  # Check for Python syntax errors
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+      - id: python-check-blanket-noqa
+      - id: python-check-blanket-type-ignore
+      - id: python-no-log-warn
+      - id: python-use-type-annotations
+
+  # Local project-specific hooks for enhanced development workflow
+  - repo: local
+    hooks:
+      - id: validate-test-coverage
+        name: Validate test coverage threshold
+        entry: bash -c 'coverage=$(hatch run test-cov | grep "TOTAL.*%" | awk "{print \$NF}" | sed "s/%//"); if [ ${coverage%.*} -lt 90 ]; then echo "Coverage ${coverage}% below 90% threshold"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: validate-all-tests-pass
+        name: Ensure all tests pass including async tests
+        entry: bash -c 'echo "Running full test suite..." && hatch run test-full > /tmp/test_output.log 2>&1 && echo "All tests passed" || (echo "Test failures detected:"; cat /tmp/test_output.log | tail -20; exit 1)'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: validate-performance-benchmarks
+        name: Validate performance benchmarks meet requirements
+        entry: bash -c 'echo "Running performance tests..." && hatch run test-performance > /tmp/perf_output.log 2>&1 && echo "Performance tests passed" || (echo "Performance test failures:"; cat /tmp/perf_output.log | tail -15; exit 1)'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: check-no-todos
+        name: Check for TODO comments in source code
+        entry: bash -c 'if grep -r "TODO\|FIXME\|XXX" src/ --exclude-dir=__pycache__ | grep -v "this_file:"; then echo "Found TODO/FIXME/XXX comments in source code"; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      - id: validate-version-consistency
+        name: Check version consistency across files
+        entry: python -c "
+import re, sys
+from pathlib import Path
+
+# Check version consistency between pyproject.toml and _version.py
+pyproject = Path('pyproject.toml').read_text()
+version_py = Path('src/uutel/_version.py').read_text()
+
+pyproject_version = re.search(r'version = \"([^\"]+)\"', pyproject)
+version_py_version = re.search(r'__version__ = \"([^\"]+)\"', version_py)
+
+if not pyproject_version or not version_py_version:
+    print('Could not find version in both files')
+    sys.exit(1)
+
+if pyproject_version.group(1) != version_py_version.group(1):
+    print(f'Version mismatch: pyproject.toml={pyproject_version.group(1)}, _version.py={version_py_version.group(1)}')
+    sys.exit(1)
+"
+        language: system
+        pass_filenames: false
+
+      - id: validate-environment-detection
+        name: Validate environment detection utilities
+        entry: python -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    from uutel.core.utils import detect_execution_environment, get_platform_specific_timeout
+    env_info = detect_execution_environment()
+    timeout = get_platform_specific_timeout(5.0)
+    print(f'Environment detection working: {env_info.platform}, timeout: {timeout:.1f}s')
+except Exception as e:
+    print(f'Environment detection failed: {e}')
+    sys.exit(1)
+"
+        language: system
+        pass_filenames: false
+
+      - id: validate-test-imports
+        name: Validate all test imports work correctly
+        entry: python -c "
+import sys, subprocess
+result = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, \"src\"); import uutel; import uutel.core.utils; import uutel.core.base'], capture_output=True, text=True)
+if result.returncode != 0:
+    print(f'Import validation failed: {result.stderr}')
+    sys.exit(1)
+print('All imports working correctly')
+"
+        language: system
+        pass_filenames: false
+
+      - id: validate-test-markers
+        name: Validate pytest markers are properly defined
+        entry: bash -c 'if grep -r "@pytest.mark\." tests/ | grep -v -E "(asyncio|slow|integration|performance|memory_intensive|windows_only|posix_only|ci_skip|high_resource|docker_skip|no_xdist)"; then echo "Found undefined pytest markers"; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      - id: check-this-file-headers
+        name: Ensure all source files have this_file headers
+        entry: python -c "
+import sys
+from pathlib import Path
+
+errors = []
+for file_path in Path('src').rglob('*.py'):
+    content = file_path.read_text()
+    if 'this_file:' not in content:
+        errors.append(str(file_path))
+
+for file_path in Path('tests').rglob('*.py'):
+    if file_path.name != '__init__.py':
+        content = file_path.read_text()
+        if 'this_file:' not in content:
+            errors.append(str(file_path))
+
+if errors:
+    print('Files missing this_file header:')
+    for error in errors:
+        print(f'  {error}')
+    sys.exit(1)
+"
+        language: system
+        pass_filenames: false

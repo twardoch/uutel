@@ -1,0 +1,313 @@
+# this_file: .github/workflows/semantic-release.yml
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (do not create release)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  semantic-release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    outputs:
+      released: ${{ steps.semantic.outputs.released }}
+      version: ${{ steps.semantic.outputs.version }}
+      tag: ${{ steps.semantic.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+          uv pip install python-semantic-release
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Check for conventional commits
+        id: check_commits
+        run: |
+          # Check if there are any conventional commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --oneline --pretty=format:"%s" ${LAST_TAG}..HEAD)
+          fi
+
+          # Check for conventional commit patterns
+          FEAT_COUNT=$(echo "$COMMITS" | grep -c "^feat" || true)
+          FIX_COUNT=$(echo "$COMMITS" | grep -c "^fix" || true)
+          BREAKING_COUNT=$(echo "$COMMITS" | grep -c "BREAKING CHANGE" || true)
+          PERF_COUNT=$(echo "$COMMITS" | grep -c "^perf" || true)
+
+          echo "feat_count=$FEAT_COUNT" >> $GITHUB_OUTPUT
+          echo "fix_count=$FIX_COUNT" >> $GITHUB_OUTPUT
+          echo "breaking_count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
+          echo "perf_count=$PERF_COUNT" >> $GITHUB_OUTPUT
+
+          # Determine if we should release
+          SHOULD_RELEASE="false"
+          VERSION_TYPE="patch"
+
+          if [ "$BREAKING_COUNT" -gt 0 ]; then
+            SHOULD_RELEASE="true"
+            VERSION_TYPE="major"
+          elif [ "$FEAT_COUNT" -gt 0 ]; then
+            SHOULD_RELEASE="true"
+            VERSION_TYPE="minor"
+          elif [ "$FIX_COUNT" -gt 0 ] || [ "$PERF_COUNT" -gt 0 ]; then
+            SHOULD_RELEASE="true"
+            VERSION_TYPE="patch"
+          fi
+
+          echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+
+          echo "📊 Commit Analysis:"
+          echo "- Features (feat): $FEAT_COUNT"
+          echo "- Bug fixes (fix): $FIX_COUNT"
+          echo "- Performance (perf): $PERF_COUNT"
+          echo "- Breaking changes: $BREAKING_COUNT"
+          echo "- Should release: $SHOULD_RELEASE"
+          echo "- Version type: $VERSION_TYPE"
+
+      - name: Run pre-release validation
+        if: steps.check_commits.outputs.should_release == 'true'
+        run: |
+          echo "🔍 Running pre-release validation..."
+
+          echo "1. Distribution validation..."
+          uv run python -c "
+          from uutel.core.distribution import validate_pypi_readiness, get_distribution_summary
+          summary = get_distribution_summary()
+          print(f'Distribution status: {summary[\"status\"]}')
+          print(f'Checks passed: {summary[\"checks_passed\"]}/{summary[\"total_checks\"]}')
+          if not validate_pypi_readiness():
+            print('❌ Package is not ready for PyPI release')
+            exit(1)
+          print('✅ Package is ready for PyPI release')
+          "
+
+          echo "2. Health validation..."
+          uv run python -c "
+          from uutel.core.health import validate_production_readiness, get_health_summary
+          summary = get_health_summary()
+          print(f'Health status: {summary[\"status\"]}')
+          print(f'Checks passed: {summary[\"checks_passed\"]}/{summary[\"total_checks\"]}')
+          if not validate_production_readiness():
+            print('❌ Package is not ready for production')
+            exit(1)
+          print('✅ Package is ready for production')
+          "
+
+      - name: Generate next version
+        if: steps.check_commits.outputs.should_release == 'true'
+        id: next_version
+        run: |
+          CURRENT_VERSION=$(python -c "import sys; sys.path.insert(0, 'src'); from uutel import __version__; print(__version__)")
+
+          VERSION_TYPE="${{ steps.check_commits.outputs.version_type }}"
+
+          if [ "$VERSION_TYPE" = "major" ]; then
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{int(parts[0])+1}.0.0')
+            ")
+          elif [ "$VERSION_TYPE" = "minor" ]; then
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{parts[0]}.{int(parts[1])+1}.0')
+            ")
+          else  # patch
+            NEXT_VERSION=$(python -c "
+            import sys; sys.path.insert(0, 'src');
+            from uutel import __version__;
+            parts = __version__.split('.');
+            print(f'{parts[0]}.{parts[1]}.{int(parts[2])+1}')
+            ")
+          fi
+
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "next=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION → Next version: $NEXT_VERSION"
+
+      - name: Update version and create release
+        if: steps.check_commits.outputs.should_release == 'true' && github.event.inputs.dry_run != 'true'
+        id: semantic
+        run: |
+          NEXT_VERSION="${{ steps.next_version.outputs.next }}"
+
+          # Update version in _version.py
+          sed -i "s/__version__ = \".*\"/__version__ = \"$NEXT_VERSION\"/" src/uutel/_version.py
+
+          # Generate changelog
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD)
+          fi
+
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep "^- feat" || true)
+          FIXES=$(echo "$COMMITS" | grep "^- fix" || true)
+          PERF=$(echo "$COMMITS" | grep "^- perf" || true)
+          OTHERS=$(echo "$COMMITS" | grep -v "^- feat" | grep -v "^- fix" | grep -v "^- perf" || true)
+
+          # Create release notes
+          RELEASE_NOTES="## Version $NEXT_VERSION
+
+### Summary
+This release includes ${{ steps.check_commits.outputs.feat_count }} new features, ${{ steps.check_commits.outputs.fix_count }} bug fixes"
+
+          if [ "${{ steps.check_commits.outputs.breaking_count }}" -gt 0 ]; then
+            RELEASE_NOTES="$RELEASE_NOTES, and **${{ steps.check_commits.outputs.breaking_count }} breaking changes**"
+          fi
+
+          RELEASE_NOTES="$RELEASE_NOTES.
+
+"
+
+          if [ -n "$FEATURES" ]; then
+            RELEASE_NOTES="$RELEASE_NOTES### 🚀 New Features
+$FEATURES
+
+"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            RELEASE_NOTES="$RELEASE_NOTES### 🐛 Bug Fixes
+$FIXES
+
+"
+          fi
+
+          if [ -n "$PERF" ]; then
+            RELEASE_NOTES="$RELEASE_NOTES### ⚡ Performance Improvements
+$PERF
+
+"
+          fi
+
+          if [ -n "$OTHERS" ]; then
+            RELEASE_NOTES="$RELEASE_NOTES### 🔧 Other Changes
+$OTHERS
+
+"
+          fi
+
+          # Update CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            # Create temporary file with new entry
+            echo "# CHANGELOG" > temp_changelog.md
+            echo "" >> temp_changelog.md
+            echo "All notable changes to this project will be documented in this file." >> temp_changelog.md
+            echo "" >> temp_changelog.md
+            echo "## [$NEXT_VERSION] - $(date +%Y-%m-%d)" >> temp_changelog.md
+            echo "" >> temp_changelog.md
+            echo "$RELEASE_NOTES" | sed 's/^## Version.*//' | sed '1d' >> temp_changelog.md
+            echo "" >> temp_changelog.md
+
+            # Append existing changelog (skip the header)
+            tail -n +4 CHANGELOG.md >> temp_changelog.md
+            mv temp_changelog.md CHANGELOG.md
+          else
+            # Create new CHANGELOG.md
+            echo "# CHANGELOG" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "## [$NEXT_VERSION] - $(date +%Y-%m-%d)" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "$RELEASE_NOTES" | sed 's/^## Version.*//' | sed '1d' >> CHANGELOG.md
+          fi
+
+          # Commit version bump and changelog
+          git add src/uutel/_version.py CHANGELOG.md
+          git commit -m "chore(release): bump version to $NEXT_VERSION
+
+[skip ci]"
+
+          # Create and push tag
+          git tag "v$NEXT_VERSION"
+          git push origin main
+          git push origin "v$NEXT_VERSION"
+
+          # Set outputs
+          echo "released=true" >> $GITHUB_OUTPUT
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+          # Save release notes for GitHub release
+          echo "$RELEASE_NOTES" > release_notes.md
+
+      - name: Upload release notes
+        if: steps.semantic.outputs.released == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+
+      - name: Dry run summary
+        if: steps.check_commits.outputs.should_release == 'true' && github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 DRY RUN - No changes made"
+          echo "=============================="
+          echo "Would create release: ${{ steps.next_version.outputs.next }}"
+          echo "Release type: ${{ steps.check_commits.outputs.version_type }}"
+          echo "Current version: ${{ steps.next_version.outputs.current }}"
+          echo ""
+          echo "Commit summary:"
+          echo "- Features: ${{ steps.check_commits.outputs.feat_count }}"
+          echo "- Bug fixes: ${{ steps.check_commits.outputs.fix_count }}"
+          echo "- Performance: ${{ steps.check_commits.outputs.perf_count }}"
+          echo "- Breaking: ${{ steps.check_commits.outputs.breaking_count }}"
+
+      - name: No release needed
+        if: steps.check_commits.outputs.should_release != 'true'
+        run: |
+          echo "ℹ️  No release needed"
+          echo "===================="
+          echo "No conventional commits found that warrant a release."
+          echo "Add commits with prefixes like 'feat:', 'fix:', 'perf:' to trigger a release."

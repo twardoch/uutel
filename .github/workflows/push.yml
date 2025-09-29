@@ -1,11 +1,10 @@
+# this_file: .github/workflows/push.yml
 name: Build & Test
 
 on:
   push:
     branches: [main]
     tags-ignore: ["v*"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,97 +15,90 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_SYSTEM_PYTHON: 1
+  PYTHONUNBUFFERED: 1
+
 jobs:
-  quality:
-    name: Code Quality
+  # Quick verification for main branch pushes
+  # Full testing happens in CI workflow for PRs
+  quick-verify:
+    name: Quick Verification
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Ruff lint
-        uses: astral-sh/ruff-action@v3
-        with:
-          version: "latest"
-          args: "check --output-format=github"
-
-      - name: Run Ruff Format
-        uses: astral-sh/ruff-action@v3
-        with:
-          version: "latest"
-          args: "format --check --respect-gitignore"
-
-  test:
-    name: Run Tests
-    needs: quality
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        os: [ubuntu-latest]
-      fail-fast: true
-    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
       - name: Install UV
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
-          python-version: ${{ matrix.python-version }}
           enable-cache: true
-          cache-suffix: ${{ matrix.os }}-${{ matrix.python-version }}
 
-      - name: Install test dependencies
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: push-verify-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            push-verify-${{ runner.os }}-
+
+      - name: Install dependencies
         run: |
-          uv pip install --system --upgrade pip
-          uv pip install --system ".[test]"
+          uv sync --all-extras --frozen
 
-      - name: Run tests with Pytest
-        run: uv run pytest -n auto --maxfail=1 --disable-warnings --cov-report=xml --cov-config=pyproject.toml --cov=src/uutel --cov=tests tests/
+      - name: Run quick quality and test suite
+        run: |
+          # Run quality checks and core tests in parallel
+          python scripts/quality-check.py &
+          QUALITY_PID=$!
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
-          path: coverage.xml
+          # Run core test suite
+          uv run pytest tests/test_package.py tests/test_init.py tests/test_uutel.py -v --tb=short &
+          TEST_PID=$!
 
-  build:
-    name: Build Distribution
-    needs: test
+          # Wait for both to complete
+          wait $QUALITY_PID && wait $TEST_PID
+
+      - name: Verify examples work
+        run: |
+          cd examples
+          uv run python basic_usage.py
+
+  # Build verification
+  build-check:
+    name: Build Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install UV
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
-          python-version: "3.12"
           enable-cache: true
 
-      - name: Install build tools
-        run: uv pip install build hatchling hatch-vcs
+      - name: Build and verify package
+        run: |
+          uv build
+          uv tool run --from twine twine check dist/*
 
-      - name: Build distributions
-        run: uv run python -m build --outdir dist
-
-      - name: Upload distribution artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-files
+          name: dist-main-${{ github.sha }}
           path: dist/
-          retention-days: 5 
+          retention-days: 3

@@ -1,7 +1,7 @@
 """Test suite for uutel."""
 
 
-def test_version():
+def test_version() -> None:
     """Verify package exposes version."""
     import uutel
 

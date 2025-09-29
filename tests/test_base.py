@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import pytest
-from litellm import CustomLLM
+from litellm import CustomLLM  # type: ignore[attr-defined]
 from litellm.types.utils import ModelResponse
 
 from uutel.core.base import BaseUU

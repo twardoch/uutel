@@ -5,20 +5,26 @@
 Created by Adam Twardoch
 """
 
-import logging
+# Standard library imports
+import time
 from dataclasses import dataclass
 from typing import Any
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Local imports
+from uutel.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
 class Config:
-    """Configuration settings for uutel."""
+    """Configuration settings for uutel.
+
+    Attributes:
+        name: Configuration name identifier
+        value: Configuration value (string, int, or float)
+        options: Optional dictionary of additional configuration options
+    """
 
     name: str
     value: str | int | float
@@ -42,28 +48,57 @@ def process_data(
         ValueError: If input data is invalid
     """
     if debug:
-        logger.setLevel(logging.DEBUG)
         logger.debug("Debug mode enabled")
 
     if not data:
         msg = "Input data cannot be empty"
         raise ValueError(msg)
 
-    # TODO: Implement data processing logic
-    result: dict[str, Any] = {}
+    # Process data according to configuration
+    processed_items = []
+    for item in data:
+        processed_item = {"original": item, "type": type(item).__name__}
+
+        # Apply configuration-based transformations if config is provided
+        if config:
+            processed_item["config_name"] = config.name
+            processed_item["config_value"] = config.value
+
+            # Apply options if available
+            if config.options:
+                for key, value in config.options.items():
+                    processed_item[f"option_{key}"] = value
+
+        processed_items.append(processed_item)
+
+    result: dict[str, Any] = {
+        "processed_count": len(processed_items),
+        "items": processed_items,
+        "timestamp": time.time(),
+        "debug_mode": debug,
+    }
+
+    if debug:
+        logger.debug(f"Processed {len(data)} items")
+
     return result
 
 
 def main() -> None:
     """Main entry point for uutel."""
     try:
-        # Example usage
+        # Example usage with sample data
         config = Config(name="default", value="test", options={"key": "value"})
-        result = process_data([], config=config)
+        sample_data = ["item1", "item2", "item3"]
+        result = process_data(sample_data, config=config)
         logger.info("Processing completed: %s", result)
 
     except Exception as e:
-        logger.error("An error occurred: %s", str(e))
+        logger.error(
+            "Error in main function: %s (config: %s)",
+            e,
+            config.name if config else None,
+        )
         raise
 
 

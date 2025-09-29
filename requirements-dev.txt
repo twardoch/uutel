@@ -1,0 +1,42 @@
+# this_file: requirements-dev.txt
+# Development requirements for UUTEL package
+# This file includes all dependencies needed for development work
+
+# Core dependencies (from pyproject.toml)
+litellm>=1.70.0
+httpx>=0.25.0
+aiohttp>=3.8.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+loguru>=0.7.0
+
+# Development tools
+ruff>=0.9.7
+mypy>=1.15.0
+pre-commit>=4.1.0
+bandit>=1.8.0
+safety>=4.0.0
+
+# Testing framework
+pytest>=8.3.4
+pytest-cov>=6.0.0
+pytest-xdist>=3.6.1
+pytest-asyncio>=0.25.3
+pytest-mock>=3.15.0
+coverage[toml]>=7.6.12
+
+# Authentication dependencies (optional but useful for development)
+google-auth>=2.15.0
+google-auth-oauthlib>=1.0.0
+google-cloud-core>=2.0.0
+
+# CLI dependencies (optional but useful for development)
+typer>=0.9.0
+rich>=13.0.0
+
+# Additional development tools not in pyproject.toml
+pip-tools>=8.0.0     # For managing requirements
+wheel>=0.45.0        # For building distributions
+twine>=6.0.0         # For uploading to PyPI
+build>=1.2.1         # For building packages
+setuptools>=75.0.0   # For package management

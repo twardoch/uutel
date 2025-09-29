@@ -8,12 +8,14 @@ convention {ProviderName}UU.
 
 from __future__ import annotations
 
+# Standard library imports
 from collections.abc import AsyncIterator, Callable, Iterator
 
-from litellm import CustomLLM
+# Third-party imports
+from litellm import CustomLLM  # type: ignore[attr-defined]
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
 from litellm.types.utils import GenericStreamingChunk, ModelResponse
-from litellm.utils import CustomStreamWrapper
+from litellm.utils import CustomStreamWrapper  # type: ignore[attr-defined]
 
 
 class BaseUU(CustomLLM):
@@ -241,5 +243,3 @@ class BaseUU(CustomLLM):
         raise NotImplementedError(
             f"astreaming method must be implemented by {self.__class__.__name__}"
         )
-        # This is required to make it an async generator
-        yield  # pragma: no cover

@@ -33,17 +33,67 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
-      - name: Install build tools
-        run: uv pip install build hatchling hatch-vcs
+      - name: Install dependencies and build tools
+        run: |
+          uv sync --all-extras
+          uv pip install build hatchling hatch-vcs twine
+
+      - name: Run pre-release validation
+        run: |
+          echo "🔍 Running comprehensive pre-release validation..."
+
+          echo "1. Distribution validation..."
+          uv run python -c "
+          from uutel.core.distribution import validate_pypi_readiness, get_distribution_summary
+          print('Running distribution validation...')
+          summary = get_distribution_summary()
+          print(f'Distribution status: {summary[\"status\"]}')
+          print(f'Checks passed: {summary[\"checks_passed\"]}/{summary[\"total_checks\"]}')
+          if summary[\"failed_checks\"]:
+            print(f'Failed checks: {summary[\"failed_checks\"]}')
+
+          is_ready = validate_pypi_readiness()
+          if not is_ready:
+            print('❌ Package is not ready for PyPI release')
+            exit(1)
+          else:
+            print('✅ Package is ready for PyPI release')
+          "
+
+          echo "2. Production readiness validation..."
+          uv run python -c "
+          from uutel.core.health import validate_production_readiness, get_health_summary
+          print('Running health validation...')
+          summary = get_health_summary()
+          print(f'Health status: {summary[\"status\"]}')
+          print(f'Checks passed: {summary[\"checks_passed\"]}/{summary[\"total_checks\"]}')
+          if summary[\"failed_checks\"]:
+            print(f'Failed checks: {summary[\"failed_checks\"]}')
+
+          is_ready = validate_production_readiness()
+          if not is_ready:
+            print('❌ Package is not ready for production')
+            exit(1)
+          else:
+            print('✅ Package is ready for production')
+          "
 
       - name: Build distributions
         run: uv run python -m build --outdir dist
 
       - name: Verify distribution files
         run: |
+          echo "📦 Verifying built distributions..."
           ls -la dist/
-          test -n "$(find dist -name '*.whl')" || (echo "Wheel file missing" && exit 1)
-          test -n "$(find dist -name '*.tar.gz')" || (echo "Source distribution missing" && exit 1)
+
+          # Check that both wheel and source distribution exist
+          test -n "$(find dist -name '*.whl')" || (echo "❌ Wheel file missing" && exit 1)
+          test -n "$(find dist -name '*.tar.gz')" || (echo "❌ Source distribution missing" && exit 1)
+
+          # Use twine to check package integrity
+          uv run twine check dist/*
+
+          echo "✅ All distribution files verified"
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -56,4 +106,4 @@ jobs:
           files: dist/*
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

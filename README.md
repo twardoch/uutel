@@ -1,29 +1,47 @@
 # UUTEL: Universal AI Provider for LiteLLM
 
-**UUTEL** is a Python package that extends LiteLLM's provider ecosystem by implementing custom providers for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex. It enables unified LLM inferencing through LiteLLM's standardized interface while leveraging the unique capabilities of each AI provider.
+[![CI](https://github.com/twardoch/uutel/actions/workflows/ci.yml/badge.svg)](https://github.com/twardoch/uutel/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/twardoch/uutel/branch/main/graph/badge.svg)](https://codecov.io/gh/twardoch/uutel)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Architecture
+**UUTEL** is a comprehensive Python package that provides a robust foundation for extending LiteLLM's provider ecosystem. It implements the **Universal Unit (UU)** pattern and provides core infrastructure for custom AI providers including Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex.
 
-UUTEL implements the **Universal Unit (UU)** pattern where each provider follows the naming convention `{ProviderName}UU`:
+## Current Status: Foundation Complete ✅
+
+UUTEL currently provides a **production-ready foundation** with comprehensive tooling and infrastructure. The core framework is complete and ready for provider implementations.
+
+### What's Built and Working
+
+- **🏗️ Core Infrastructure**: Complete `BaseUU` class extending LiteLLM's `CustomLLM`
+- **🔐 Authentication Framework**: Flexible `BaseAuth` system with secure credential handling
+- **🛠️ Tool Calling**: 5 OpenAI-compatible utilities for function calling workflows
+- **📡 Streaming Support**: Async/sync streaming with chunk processing and error handling
+- **🚨 Exception Handling**: 7 specialized exception types with provider context
+- **🧪 Testing Infrastructure**: 71 tests with 84% coverage, comprehensive fixtures
+- **⚙️ CI/CD Pipeline**: Multi-platform testing, code quality, security scanning
+- **📚 Examples**: Working demonstrations of all capabilities
+- **🔧 Developer Experience**: Modern tooling with ruff, mypy, pre-commit ready
+
+### Planned Providers (Phase 2)
+
+The foundation supports these upcoming provider implementations:
 
 - **ClaudeCodeUU**: OAuth-based Claude Code provider with MCP tool integration
-- **GeminiCLIUU**: Multi-auth Gemini CLI provider supporting API keys, Vertex AI, and OAuth
+- **GeminiCLIUU**: Multi-auth Gemini CLI provider (API keys, Vertex AI, OAuth)
 - **CloudCodeUU**: Google Cloud Code provider with service account authentication
 - **CodexUU**: OpenAI Codex provider with ChatGPT backend integration
 
-Each provider extends the `BaseUU` class (which inherits from LiteLLM's `BaseLLM`) and includes:
-- Authentication management (`{Provider}Auth`)
-- Message transformation (`{Provider}Transform`)
-- Request/response models (`{Provider}Request`, `{Provider}Response`)
+## Key Features
 
-## Features
-
-- **LiteLLM Compatibility**: Full adherence to LiteLLM's provider interface patterns
-- **Unified API**: Consistent OpenAI-compatible interface across all providers
-- **Authentication Management**: Secure handling of OAuth, API keys, and service accounts
-- **Streaming Support**: Real-time response streaming for all providers
-- **Tool Calling**: Function calling capabilities where supported
-- **Error Handling**: Robust error mapping and fallback mechanisms
+- **🔗 LiteLLM Compatibility**: Full adherence to LiteLLM's provider interface patterns
+- **🌐 Unified API**: Consistent OpenAI-compatible interface across all providers
+- **🔐 Authentication Management**: Secure handling of OAuth, API keys, and service accounts
+- **📡 Streaming Support**: Real-time response streaming with comprehensive error handling
+- **🛠️ Tool Calling**: Complete OpenAI-compatible function calling implementation
+- **🚨 Error Handling**: Robust error mapping, fallback mechanisms, and detailed context
+- **🧪 Test Coverage**: 84% coverage with comprehensive test suite
+- **⚙️ Production Ready**: CI/CD pipeline, security scanning, quality checks
 
 ## Installation
 
@@ -37,82 +55,113 @@ pip install uutel[all]
 pip install -e .[dev]
 ```
 
-## Basic Usage
+## Quick Start
+
+### Using Core Infrastructure
 
 ```python
-import litellm
-from uutel import ClaudeCodeUU, GeminiCLIUU, CloudCodeUU, CodexUU
+from uutel import BaseUU, BaseAuth, validate_tool_schema, create_tool_call_response
 
-# Register UUTEL providers with LiteLLM
-litellm.custom_provider_map = [
-    {"provider": "claude-code", "custom_handler": ClaudeCodeUU()},
-    {"provider": "gemini-cli", "custom_handler": GeminiCLIUU()},
-    {"provider": "cloud-code", "custom_handler": CloudCodeUU()},
-    {"provider": "codex", "custom_handler": CodexUU()},
-]
+# Example of extending BaseUU for your own provider
+class MyProviderUU(BaseUU):
+    def __init__(self):
+        super().__init__()
+        self.provider_name = "my-provider"
+        self.supported_models = ["my-model-1.0"]
 
-# Use via LiteLLM's standard interface
-response = litellm.completion(
-    model="uutel/claude-code/claude-3-5-sonnet",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
+    def completion(self, model, messages, **kwargs):
+        # Your provider implementation
+        return {"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]}
+
+# Use authentication framework
+auth = BaseAuth()
+# Implement your authentication logic
+
+# Use tool calling utilities
+tool = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get weather information",
+        "parameters": {"type": "object", "properties": {"location": {"type": "string"}}}
+    }
+}
+
+is_valid = validate_tool_schema(tool)  # True
+response = create_tool_call_response("call_123", "get_weather", {"temp": "22°C"})
 ```
 
-## Provider-Specific Usage
+### Tool Calling Capabilities
 
-### Claude Code Provider
 ```python
-from uutel.providers.claude_code import ClaudeCodeUU
-
-# OAuth authentication with browser flow
-provider = ClaudeCodeUU()
-response = litellm.completion(
-    model="uutel/claude-code/claude-3-5-sonnet-20241022",
-    messages=[{"role": "user", "content": "Analyze this code"}],
-    tools=[{"type": "function", "function": {"name": "analyze_code"}}]
+from uutel import (
+    validate_tool_schema,
+    transform_openai_tools_to_provider,
+    create_tool_call_response,
+    extract_tool_calls_from_response
 )
+
+# Validate OpenAI tool schemas
+tool = {"type": "function", "function": {"name": "calc", "description": "Calculate"}}
+is_valid = validate_tool_schema(tool)
+
+# Transform tools between formats
+provider_tools = transform_openai_tools_to_provider([tool], "my-provider")
+
+# Create tool responses
+response = create_tool_call_response(
+    tool_call_id="call_123",
+    function_name="calculate",
+    function_result={"result": 42}
+)
+
+# Extract tool calls from provider responses
+tool_calls = extract_tool_calls_from_response(provider_response)
 ```
 
-### Gemini CLI Provider
+### Streaming Support
+
 ```python
-from uutel.providers.gemini_cli import GeminiCLIUU
+from uutel import BaseUU
+import asyncio
 
-# API key authentication
-provider = GeminiCLIUU(auth_type="api-key", api_key="your-key")
+class StreamingProvider(BaseUU):
+    def simulate_streaming(self, text):
+        """Example streaming implementation"""
+        for word in text.split():
+            yield {"choices": [{"delta": {"content": f"{word} "}}]}
+        yield {"choices": [{"delta": {}, "finish_reason": "stop"}]}
 
-# Vertex AI authentication
-provider = GeminiCLIUU(auth_type="vertex-ai", project_id="your-project")
-
-response = litellm.completion(
-    model="uutel/gemini-cli/gemini-2.0-flash-exp",
-    messages=[{"role": "user", "content": "Generate code"}],
-    stream=True
-)
+# Use streaming (see examples/streaming_example.py for full demo)
+provider = StreamingProvider()
+for chunk in provider.simulate_streaming("Hello world"):
+    content = chunk["choices"][0]["delta"].get("content", "")
+    if content:
+        print(content, end="")
 ```
 
-### Google Cloud Code Provider
+### Authentication Framework
+
 ```python
-from uutel.providers.cloud_code import CloudCodeUU
+from uutel import BaseAuth, AuthResult
+from datetime import datetime
 
-# Service account authentication
-provider = CloudCodeUU(project_id="your-gcp-project")
-response = litellm.completion(
-    model="uutel/cloud-code/gemini-2.5-pro",
-    messages=[{"role": "user", "content": "Review this PR"}]
-)
-```
+class MyAuth(BaseAuth):
+    def authenticate(self, **kwargs):
+        # Implement your authentication logic
+        return AuthResult(
+            success=True,
+            token="your-token",
+            expires_at=datetime.now(),
+            error=None
+        )
 
-### OpenAI Codex Provider
-```python
-from uutel.providers.codex import CodexUU
+    def get_headers(self):
+        return {"Authorization": f"Bearer {self.get_token()}"}
 
-# Uses Codex CLI session tokens
-provider = CodexUU()
-response = litellm.completion(
-    model="uutel/codex/gpt-4o",
-    messages=[{"role": "user", "content": "Explain this algorithm"}],
-    max_tokens=4000
-)
+# Use in your provider
+auth = MyAuth()
+headers = auth.get_headers()
 ```
 
 ## Package Structure
@@ -134,54 +183,198 @@ uutel/
 └── examples/                  # Usage examples and demos
 ```
 
-## Authentication Setup
+## Examples
 
-### Claude Code
-- OAuth 2.0 with PKCE flow
-- Browser-based authentication
-- Automatic token refresh
+UUTEL includes comprehensive examples demonstrating all capabilities:
 
-### Gemini CLI
-- Multiple methods: API key, Vertex AI, OAuth
-- Environment variables: `GEMINI_API_KEY`
-- Google Cloud Application Default Credentials
+### Basic Usage Example
+```bash
+python examples/basic_usage.py
+```
+Demonstrates core infrastructure, authentication framework, error handling, and utilities.
 
-### Google Cloud Code
-- Service account JSON or ADC
-- Environment: `GOOGLE_APPLICATION_CREDENTIALS`
-- Project ID required
+### Tool Calling Example
+```bash
+python examples/tool_calling_example.py
+```
+Complete demonstration of OpenAI-compatible tool calling with validation, transformation, and workflow simulation.
 
-### OpenAI Codex
-- Session tokens from `~/.codex/auth.json`
-- Automatic token refresh
-- Fallback to OpenAI API key
+### Streaming Example
+```bash
+python examples/streaming_example.py
+```
+Async/sync streaming responses with chunk processing, error handling, and concurrent request management.
 
 ## Development
 
-This project uses [Hatch](https://hatch.pypa.io/) for development workflow management.
+This project uses modern Python tooling for an excellent developer experience:
 
-### Setup Development Environment
+### Development Tools
+- **[Hatch](https://hatch.pypa.io/)**: Project management and virtual environments
+- **[Ruff](https://github.com/astral-sh/ruff)**: Fast linting and formatting
+- **[MyPy](https://mypy.readthedocs.io/)**: Static type checking
+- **[Pytest](https://pytest.org/)**: Testing framework with 71 tests
+- **[GitHub Actions](https://github.com/features/actions)**: CI/CD pipeline
+
+### Quick Setup
 
 ```bash
-# Install hatch if you haven't already
+# Clone repository
+git clone https://github.com/twardoch/uutel.git
+cd uutel
+
+# Install UV (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync --all-extras
+
+# Run tests
+uv run pytest
+
+# Run all quality checks
+uv run ruff check src/uutel tests
+uv run ruff format src/uutel tests
+uv run mypy src/uutel
+```
+
+### Using Hatch (Alternative)
+
+```bash
+# Install hatch
 pip install hatch
 
 # Create and activate development environment
 hatch shell
 
-# Run tests
+# Run tests (RECOMMENDED for all async tests)
 hatch run test
 
 # Run tests with coverage
 hatch run test-cov
 
-# Run linting
-hatch run lint
+# Note: Always use 'hatch run test' instead of 'hatch test'
+# to ensure proper async plugin loading
 
-# Format code
+# Run linting and formatting
+hatch run lint
 hatch run format
+
+# Type checking
+hatch run typecheck
 ```
+
+### Using Make (Convenience)
+
+```bash
+# Install development dependencies
+make install-dev
+
+# Run all checks
+make check
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+```
+
+## Architecture & Design
+
+### Universal Unit (UU) Pattern
+
+UUTEL implements a consistent **Universal Unit** pattern where all provider classes follow the `{ProviderName}UU` naming convention:
+
+```python
+# Base class
+class BaseUU(CustomLLM):  # Extends LiteLLM's CustomLLM
+    def __init__(self):
+        self.provider_name: str = "base"
+        self.supported_models: list[str] = []
+
+# Provider implementations (future)
+class ClaudeCodeUU(BaseUU): ...
+class GeminiCLIUU(BaseUU): ...
+class CloudCodeUU(BaseUU): ...
+class CodexUU(BaseUU): ...
+```
+
+### Core Components
+
+1. **`BaseUU`**: LiteLLM-compatible provider base class
+2. **`BaseAuth`**: Flexible authentication framework
+3. **Exception Framework**: 7 specialized exception types
+4. **Tool Calling**: 5 OpenAI-compatible utilities
+5. **Streaming Support**: Async/sync response handling
+6. **Utilities**: HTTP clients, validation, transformation
+
+### Quality Assurance
+
+- **84% Test Coverage**: 71 comprehensive tests
+- **CI/CD Pipeline**: Multi-platform testing (Ubuntu, macOS, Windows)
+- **Code Quality**: Ruff formatting, MyPy type checking
+- **Security Scanning**: Bandit and Safety integration
+- **Documentation**: Examples, architecture docs, API reference
+
+## Roadmap
+
+### Phase 2: Provider Implementations (Upcoming)
+- **ClaudeCodeUU**: OAuth authentication, MCP tool integration
+- **GeminiCLIUU**: Multi-auth support (API key, Vertex AI, OAuth)
+- **CloudCodeUU**: Google Cloud service account authentication
+- **CodexUU**: ChatGPT backend integration with session management
+
+### Phase 3: LiteLLM Integration
+- Provider registration with LiteLLM
+- Model name mapping (`uutel/provider/model`)
+- Configuration management and validation
+- Production deployment support
+
+### Phase 4: Advanced Features
+- Response caching and performance optimization
+- Monitoring and observability tools
+- Community plugin system
+- Enterprise features and team management
+
+## Contributing
+
+We welcome contributions! The project is designed with simplicity and extensibility in mind.
+
+### Getting Started
+1. Fork the repository
+2. Set up development environment: `uv sync --all-extras`
+3. Run tests: `uv run pytest`
+4. Make your changes
+5. Ensure tests pass and code quality checks pass
+6. Submit a pull request
+
+### Development Guidelines
+- Follow the **UU naming pattern** (`{ProviderName}UU`)
+- Write tests first (TDD approach)
+- Maintain 80%+ test coverage
+- Use modern Python features (3.10+ type hints)
+- Keep functions under 20 lines, files under 200 lines
+- Document with clear docstrings
+
+### Current Focus
+The project is currently accepting contributions for:
+- Provider implementations (Phase 2)
+- Documentation improvements
+- Example applications
+- Performance optimizations
+- Bug fixes and quality improvements
+
+## Support
+
+- **Documentation**: [GitHub Wiki](https://github.com/twardoch/uutel/wiki) (coming soon)
+- **Issues**: [GitHub Issues](https://github.com/twardoch/uutel/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/twardoch/uutel/discussions)
 
 ## License
 
-MIT License 
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+**UUTEL** provides the universal foundation for AI provider integration. Built with modern Python practices, comprehensive testing, and extensibility in mind.

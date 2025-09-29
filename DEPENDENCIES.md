@@ -119,6 +119,22 @@ This document lists all dependencies used by UUTEL and the rationale for includi
   - Automatically runs linting and formatting
   - Prevents broken code from entering repository
 
+- **bandit>=1.8.0**: Security linter for Python code
+  - Scans code for common security issues
+  - Identifies potential vulnerabilities
+  - Required for maintaining security standards
+
+- **safety>=4.0.0**: Dependency vulnerability scanner
+  - Checks dependencies for known security vulnerabilities
+  - Provides security alerts for outdated packages
+  - Required for maintaining secure dependencies
+
+### Import Organization
+- **isort**: Python import sorting tool
+  - Automatically sorts and organizes imports
+  - Configured for Black compatibility
+  - Maintains consistent import style across codebase
+
 ## Package Selection Rationale
 
 ### Why These Specific Versions?

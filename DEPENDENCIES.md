@@ -52,6 +52,11 @@ This document lists all dependencies used by UUTEL and the rationale for includi
   - Supports PKCE for secure OAuth in Claude Code provider
   - Handles token refresh and storage
 
+- **google-generativeai>=0.7.0**: Official Gemini Python bindings
+  - Provides typed client for Gemini `generate_content` API
+  - Handles streaming responses and native tool/JSON schema support
+  - Reduces custom HTTP code for Gemini provider implementation
+
 - **google-cloud-core>=2.0.0**: Core Google Cloud client library
   - Provides common utilities for Google Cloud services
   - Required for Cloud Code provider implementation

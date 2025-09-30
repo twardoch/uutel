@@ -26,15 +26,21 @@ from uutel.core import (
     NetworkError,
     ProviderError,
     RateLimitError,
+    RetryConfig,
     UUTELError,
     ValidationError,
+    create_http_client,
     create_tool_call_response,
     extract_provider_from_model,
+    extract_tool_calls_from_response,
     format_error_message,
     get_error_debug_info,
     transform_openai_to_provider,
+    transform_openai_tools_to_provider,
     transform_provider_to_openai,
+    transform_provider_tools_to_openai,
     validate_model_name,
+    validate_tool_schema,
 )
 
 __all__ = [
@@ -48,18 +54,24 @@ __all__ = [
     "NetworkError",
     "ProviderError",
     "RateLimitError",
+    "RetryConfig",
     "UUTELError",
     "ValidationError",
     # Package metadata
     "__version__",
     # Core utilities
+    "create_http_client",
     "create_tool_call_response",
     "extract_provider_from_model",
+    "extract_tool_calls_from_response",
     "format_error_message",
     "get_error_debug_info",
     # Submodules
     "providers",
     "transform_openai_to_provider",
+    "transform_openai_tools_to_provider",
     "transform_provider_to_openai",
+    "transform_provider_tools_to_openai",
     "validate_model_name",
+    "validate_tool_schema",
 ]

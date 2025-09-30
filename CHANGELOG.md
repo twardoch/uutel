@@ -1,3 +1,7 @@
+---
+this_file: CHANGELOG.md
+---
+
 # CHANGELOG
 
 All notable changes to this project will be documented in this file.
@@ -39,6 +43,7 @@ Replaced all mock provider implementations with real integrations:
 - **Multiple Credential Locations**: Checks `.gemini`, `.config/gemini`, `.google-cloud-code`
 - **Same Models**: gemini-2.5-flash, gemini-2.5-pro, gemini-pro, gemini-flash
 - **Usage Metadata**: Includes token usage information in responses
+- **Endpoints**: Uses `/v1internal:generateContent` and streaming SSE to deliver real completions with tool + JSON schema support
 
 ### Technical Implementation Details
 - **Reference Analysis**: Analyzed TypeScript/JavaScript reference implementations:
@@ -58,12 +63,61 @@ Replaced all mock provider implementations with real integrations:
 **Gemini CLI**: Set `GOOGLE_API_KEY` or run `gemini login`
 **Cloud Code**: Set `GOOGLE_API_KEY` or run `gemini login` (creates OAuth creds)
 
+### Enhanced - Gemini CLI Provider (2025-09-30)
+- Added google-generativeai powered completion path with tool/function mapping and JSON schema shaping.
+- Implemented streaming adapter with chunked responses plus CLI credential refresh fallback.
+- Normalised multimodal message conversion (text + base64 imagery) for LiteLLM compatibility.
+
+### Enhanced - Claude Code Provider (2025-10-01)
+- Replaced placeholder implementation with CLI subprocess integration using structured environment payloads and shared runner utilities.
+- Added streaming JSONL parser emitting text/tool chunks, optional cancellation guard via threading event, and timeout propagation.
+- Normalised usage metadata mapping and improved error messages when the CLI binary is missing.
+- Introduced dedicated tests in `tests/test_claude_provider.py` covering completion, streaming, cancellation, and CLI absence scenarios.
+
+### Documentation & Examples (2025-10-01)
+- CLI `list_engines` now surfaces provider-specific credential requirements.
+- `examples/basic_usage.py` replays the deterministic Claude fixture and prints commands required for live CLAUDE runs.
+- README examples section points to the fixture replay and enumerates the installation/login steps for enabling live Claude streaming.
+
 ### Testing
+- ✅ 2025-09-30: `uvx hatch test` (221 passed, 4 xfailed placeholders) after Gemini provider integration
+- ✅ 2025-09-30: /report verification — `uvx hatch test` (221 passed, 4 xfailed placeholders)
+- ✅ 2025-09-30: `tests/test_cloud_code_provider.py` (4 passed) and `tests/test_provider_fixtures.py` (4 passed) after Cloud Code provider upgrade
+- ✅ 2025-09-30: `uvx hatch test` (225 passed, 2 xfailed placeholders) with Cloud Code provider hitting `/v1internal`
+- ✅ 2025-09-30: /report verification — `uvx hatch test` (225 passed, 2 xfailed placeholders)
+- ✅ 2025-09-30: /report verification — `uvx hatch test` (217 passed, 6 xfailed placeholders)
 - ✅ All 4 providers load successfully
 - ✅ Proper error handling for missing authentication
 - ✅ Clear user guidance for setup requirements
 - ⚠️ Full integration tests require actual CLI authentication
 - ⚠️ `uvx hatch test` has unrelated ImportErrors in test suite
+- ❌ 2025-09-30: `uvx hatch test` (8 failures) — CLI messaging assertions still expect legacy phrasing
+- ✅ 2025-09-30: `uvx hatch test` (217 passed, 6 xfailed placeholders) during /report verification
+- ✅ 2025-09-30: `uvx hatch test tests/test_provider_fixtures.py`, `tests/test_runners.py`, `tests/test_auth.py`, `tests/test_codex_provider.py` (all new suites passing)
+- ✅ 2025-10-01: `uvx hatch test` (229 passed) after Claude Code provider/CLI/doc refresh
+
+### Added - Streaming & Auth Infrastructure (2025-09-30)
+- Captured Gemini, Cloud Code, and Codex sample outputs and enforced their presence via `tests/test_provider_fixtures.py`.
+- Implemented shared subprocess runner with sync/async streaming helpers plus coverage in `tests/test_runners.py`.
+- Extended authentication helpers to load CLI/OAuth credentials with refresh support and new tests in `tests/test_auth.py`.
+- Replaced Codex streaming mocks with SSE parsing that yields `GenericStreamingChunk` data, and normalised Codex tool/function call payloads with expanded `tests/test_codex_provider.py`.
+- ⚪ 2025-09-30: Added pytest xfail placeholders for Claude/Gemini/Cloud Code providers (`tests/test_provider_placeholders.py`) to track missing real integrations
+
+### Fixed - Core Utility Surface (#202)
+- Restored `RetryConfig`, HTTP client factory, tool schema validators/transformers, and tool call extraction helpers so the test suite and downstream imports match the planned API surface.
+- Tests: `uvx hatch test` *(fails: CLI + provider suites still rely on mock integrations hitting live endpoints)*, `uvx hatch test tests/test_utils.py tests/test_tool_calling.py` *(pass: 57 utility/tests)*
+
+### Changed - Codex Completion Workflow (#202)
+- Refactored `CodexUU` to build real OpenAI/Codex payloads, honour injected HTTP clients, normalise assistant content, and reuse shared retrying client infrastructure; updated tests to stub HTTP calls and validate request construction.
+- Tests: `uvx hatch test tests/test_utils.py tests/test_tool_calling.py tests/test_codex_provider.py` *(pass: 71 utility + Codex tests)*; full `uvx hatch test` still fails on legacy CLI messaging expectations pending fixture refresh.
+
+### Fixed - CLI Error Messaging Fixtures
+- Updated CLI tests to expect contextual `format_error_message` output and refreshed engine listing assertions to match current UX copy.
+- Tests: `uvx hatch test` *(pass: 199 tests)*.
+
+### Documentation - Provider Authentication Prerequisites
+- Added provider-specific installation and credential setup guidance to `README.md` (Codex, Claude Code, Gemini CLI, Cloud Code).
+- Drafted the same guidance in `WORK.md` for traceability.
 
 ## [1.0.23] - 2025-09-29
 

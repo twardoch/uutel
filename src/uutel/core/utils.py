@@ -1,12 +1,19 @@
 # this_file: src/uutel/core/utils.py
-"""UUTEL core utilities - simplified message transformation only."""
+"""Core utilities supporting HTTP access, tool schemas, and message handling."""
 
 from __future__ import annotations
 
 # Standard library imports
+import asyncio
+import copy
 import json
 import re
+import time
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from typing import Any
+
+from litellm.types.utils import GenericStreamingChunk
 
 # Local imports
 from .exceptions import UUTELError
@@ -22,6 +29,416 @@ _INVALID_CHARS_PATTERN = re.compile(r"[\s\n\r\t\0]")
 _MODEL_VALIDATION_CACHE: dict[str, bool] = {}
 _PROVIDER_EXTRACTION_CACHE: dict[str, tuple[str, str]] = {}
 _CACHE_SIZE_LIMIT = 1000
+_DEFAULT_TIMEOUT_SECONDS = 60.0
+
+
+def _default_retry_exceptions() -> tuple[type[BaseException], ...]:
+    """Return default retryable exceptions.
+
+    The defaults include generic connection issues and httpx transport
+    exceptions when available.
+    """
+
+    exceptions: list[type[BaseException]] = [TimeoutError, ConnectionError]
+    try:
+        import httpx
+
+        exceptions.extend([httpx.TimeoutException, httpx.TransportError])
+    except Exception:
+        # httpx may not be available at import time during certain test setups
+        pass
+
+    return tuple(exceptions)
+
+
+@dataclass(slots=True)
+class RetryConfig:
+    """Configuration for HTTP retry behaviour."""
+
+    max_retries: int = 3
+    backoff_factor: float = 2.0
+    retry_on_status: Sequence[int] = field(
+        default_factory=lambda: (408, 409, 425, 429, 500, 502, 503, 504)
+    )
+    retry_on_exceptions: Sequence[type[BaseException]] = field(
+        default_factory=_default_retry_exceptions
+    )
+
+    def __post_init__(self) -> None:
+        """Normalise configuration values after initialisation."""
+
+        self.max_retries = max(0, int(self.max_retries))
+        self.backoff_factor = max(0.0, float(self.backoff_factor))
+
+        # Ensure statuses are stored as a mutable list of ints for easier introspection
+        self.retry_on_status = [int(status) for status in self.retry_on_status]
+
+        filtered: list[type[BaseException]] = []
+        for exc in self.retry_on_exceptions:
+            if isinstance(exc, type) and issubclass(exc, BaseException):
+                filtered.append(exc)
+        self.retry_on_exceptions = filtered
+
+    def should_retry_status(self, status: int) -> bool:
+        """Return True when the HTTP status code is retryable."""
+
+        return status in self.retry_on_status
+
+    def should_retry_exception(self, error: BaseException) -> bool:
+        """Return True when the exception type is retryable."""
+
+        return any(isinstance(error, exc) for exc in self.retry_on_exceptions)
+
+    def get_backoff_seconds(self, attempt_number: int) -> float:
+        """Compute delay before the next retry attempt.
+
+        Args:
+            attempt_number: 1-based index of the upcoming retry attempt.
+        """
+
+        if self.backoff_factor <= 0 or attempt_number <= 0:
+            return 0.0
+        return self.backoff_factor * (2 ** (attempt_number - 1))
+
+
+class _SyncRetryClient:
+    """Synchronous HTTP client wrapper adding basic retry behaviour."""
+
+    def __init__(self, client, config: RetryConfig) -> None:
+        self._client = client
+        self._config = config
+
+    def request(self, method: str, url: str, **kwargs) -> Any:
+        """Execute a request with retry semantics."""
+
+        last_error: BaseException | None = None
+
+        for attempt in range(self._config.max_retries + 1):
+            try:
+                response = self._client.request(method, url, **kwargs)
+            except BaseException as exc:  # pragma: no cover - defensive
+                last_error = exc
+                if (
+                    not self._config.should_retry_exception(exc)
+                    or attempt == self._config.max_retries
+                ):
+                    raise
+
+                delay = self._config.get_backoff_seconds(attempt + 1)
+                if delay:
+                    time.sleep(delay)
+                continue
+
+            if (
+                self._config.should_retry_status(response.status_code)
+                and attempt < self._config.max_retries
+            ):
+                delay = self._config.get_backoff_seconds(attempt + 1)
+                if delay:
+                    time.sleep(delay)
+                continue
+
+            return response
+
+        if last_error is not None:  # pragma: no cover - defensive
+            raise last_error
+
+        raise UUTELError("HTTP request failed without response", provider="http")
+
+    def get(self, url: str, **kwargs) -> Any:
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> Any:
+        return self.request("POST", url, **kwargs)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> _SyncRetryClient:
+        self._client.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._client.__exit__(exc_type, exc, tb)
+
+    def __getattr__(self, item: str) -> Any:
+        return getattr(self._client, item)
+
+
+class _AsyncRetryClient:
+    """Asynchronous HTTP client wrapper adding basic retry behaviour."""
+
+    def __init__(self, client, config: RetryConfig) -> None:
+        self._client = client
+        self._config = config
+
+    async def request(self, method: str, url: str, **kwargs) -> Any:
+        """Execute an async request with retry semantics."""
+
+        last_error: BaseException | None = None
+
+        for attempt in range(self._config.max_retries + 1):
+            try:
+                response = await self._client.request(method, url, **kwargs)
+            except BaseException as exc:  # pragma: no cover - defensive
+                last_error = exc
+                if (
+                    not self._config.should_retry_exception(exc)
+                    or attempt == self._config.max_retries
+                ):
+                    raise
+
+                delay = self._config.get_backoff_seconds(attempt + 1)
+                if delay:
+                    await asyncio.sleep(delay)
+                continue
+
+            if (
+                self._config.should_retry_status(response.status_code)
+                and attempt < self._config.max_retries
+            ):
+                delay = self._config.get_backoff_seconds(attempt + 1)
+                if delay:
+                    await asyncio.sleep(delay)
+                continue
+
+            return response
+
+        if last_error is not None:  # pragma: no cover - defensive
+            raise last_error
+
+        raise UUTELError("Async HTTP request failed without response", provider="http")
+
+    async def get(self, url: str, **kwargs) -> Any:
+        return await self.request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs) -> Any:
+        return await self.request("POST", url, **kwargs)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self) -> _AsyncRetryClient:
+        await self._client.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self._client.__aexit__(exc_type, exc, tb)
+
+    def __getattr__(self, item: str) -> Any:
+        return getattr(self._client, item)
+
+
+def create_http_client(
+    *,
+    async_client: bool = False,
+    timeout: float | None = None,
+    retry_config: RetryConfig | None = None,
+):
+    """Create an HTTP client with optional retry support.
+
+    Args:
+        async_client: When True, return an asynchronous client.
+        timeout: Per-request timeout in seconds. Defaults to 60 seconds.
+        retry_config: Optional retry configuration. Defaults to :class:`RetryConfig`.
+    """
+
+    try:
+        import httpx
+    except ImportError as exc:  # pragma: no cover - environment guard
+        raise UUTELError(
+            "httpx is required to create HTTP clients", provider="http"
+        ) from exc
+
+    timeout_value = timeout if timeout is not None else _DEFAULT_TIMEOUT_SECONDS
+    timeout_config = httpx.Timeout(timeout_value)
+
+    retry = retry_config or RetryConfig()
+
+    if async_client:
+        client = httpx.AsyncClient(timeout=timeout_config)
+        if retry.max_retries == 0 or (
+            not retry.retry_on_status and not retry.retry_on_exceptions
+        ):
+            return client
+        return _AsyncRetryClient(client, retry)
+
+    client = httpx.Client(timeout=timeout_config)
+    if retry.max_retries == 0 or (
+        not retry.retry_on_status and not retry.retry_on_exceptions
+    ):
+        return client
+    return _SyncRetryClient(client, retry)
+
+
+def validate_tool_schema(tool: Any) -> bool:
+    """Validate an OpenAI-style tool schema."""
+
+    return _normalise_tool_schema(tool) is not None
+
+
+def transform_openai_tools_to_provider(
+    tools: Iterable[Any] | None, provider_name: str
+) -> list[dict[str, Any]]:
+    """Convert OpenAI tool definitions into provider friendly structures."""
+
+    if not tools:
+        return []
+
+    transformed: list[dict[str, Any]] = []
+    for tool in tools:
+        normalised = _normalise_tool_schema(tool)
+        if normalised is None:
+            logger.debug("Skipping invalid tool schema for provider %s", provider_name)
+            continue
+        transformed.append(normalised)
+    return transformed
+
+
+def transform_provider_tools_to_openai(
+    tools: Iterable[Any] | None, provider_name: str
+) -> list[dict[str, Any]]:
+    """Convert provider tool schemas back into OpenAI format."""
+
+    if not tools:
+        return []
+
+    transformed: list[dict[str, Any]] = []
+    for tool in tools:
+        normalised = _normalise_tool_schema(tool)
+        if normalised is None:
+            logger.debug("Skipping invalid provider tool for %s", provider_name)
+            continue
+        transformed.append(normalised)
+    return transformed
+
+
+def extract_tool_calls_from_response(response: Any) -> list[dict[str, Any]]:
+    """Extract tool call payloads from an OpenAI response shape."""
+
+    if not isinstance(response, dict):
+        return []
+
+    choices = response.get("choices")
+    if not isinstance(choices, list):
+        return []
+
+    extracted: list[dict[str, Any]] = []
+
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            continue
+
+        tool_calls = message.get("tool_calls")
+        if not isinstance(tool_calls, list):
+            continue
+
+        for raw_call in tool_calls:
+            if not isinstance(raw_call, dict):
+                continue
+
+            call_type = raw_call.get("type", "function")
+            function_payload = raw_call.get("function")
+
+            if call_type != "function" or not isinstance(function_payload, dict):
+                continue
+
+            function_name = function_payload.get("name")
+            if not isinstance(function_name, str) or not function_name.strip():
+                continue
+
+            arguments = function_payload.get("arguments")
+            parsed_arguments = _parse_tool_arguments(arguments)
+
+            extracted.append(
+                {
+                    "id": raw_call.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": function_name.strip(),
+                        "arguments": parsed_arguments,
+                    },
+                }
+            )
+
+    return extracted
+
+
+def _normalise_tool_schema(tool: Any) -> dict[str, Any] | None:
+    """Return a cleaned tool schema or None when invalid."""
+
+    if not isinstance(tool, dict):
+        return None
+
+    tool_type = tool.get("type")
+    if tool_type != "function":
+        return None
+
+    function_payload = tool.get("function")
+    if not isinstance(function_payload, dict):
+        return None
+
+    name = function_payload.get("name")
+    description = function_payload.get("description")
+
+    if not isinstance(name, str) or not name.strip():
+        return None
+
+    if not isinstance(description, str) or not description.strip():
+        return None
+
+    normalised: dict[str, Any] = {
+        "type": "function",
+        "function": {
+            "name": name.strip(),
+            "description": description.strip(),
+        },
+    }
+
+    parameters = function_payload.get("parameters", None)
+    if parameters is not None:
+        if not isinstance(parameters, dict):
+            return None
+
+        parameter_type = parameters.get("type")
+        if parameter_type != "object":
+            return None
+
+        properties = parameters.get("properties")
+        if properties is not None and not isinstance(properties, dict):
+            return None
+
+        required_fields = parameters.get("required")
+        if required_fields is not None and not isinstance(
+            required_fields, list | tuple
+        ):
+            return None
+
+        normalised["function"]["parameters"] = copy.deepcopy(parameters)
+
+    if "strict" in function_payload and isinstance(function_payload["strict"], bool):
+        normalised["function"]["strict"] = function_payload["strict"]
+
+    return normalised
+
+
+def _parse_tool_arguments(arguments: Any) -> Any:
+    """Attempt to decode tool arguments from JSON when possible."""
+
+    if isinstance(arguments, str):
+        try:
+            return json.loads(arguments)
+        except json.JSONDecodeError:
+            return arguments
+
+    if isinstance(arguments, dict | list | tuple) or arguments is None:
+        return arguments
+
+    return arguments
 
 
 def transform_openai_to_provider(
@@ -314,3 +731,79 @@ def create_tool_call_response(
             content = str(function_result) if function_result is not None else "null"
 
     return {"tool_call_id": tool_call_id, "role": "tool", "content": content}
+
+
+def merge_usage_stats(
+    existing: dict[str, int] | None,
+    delta: dict[str, int] | None,
+) -> dict[str, int] | None:
+    """Merge usage statistics while normalising token totals."""
+
+    if not existing and not delta:
+        return None
+
+    merged: dict[str, int] = {}
+    for source in (existing, delta):
+        if not source:
+            continue
+        for key, value in source.items():
+            if isinstance(value, int | float):
+                merged[key] = merged.get(key, 0) + int(value)
+
+    merged.setdefault(
+        "total_tokens",
+        merged.get("prompt_tokens", 0) + merged.get("completion_tokens", 0),
+    )
+    return merged
+
+
+def create_text_chunk(
+    text: str,
+    *,
+    index: int = 0,
+    finished: bool = False,
+    usage: dict[str, int] | None = None,
+    finish_reason: str | None = None,
+) -> GenericStreamingChunk:
+    """Create a GenericStreamingChunk carrying assistant text."""
+
+    chunk = GenericStreamingChunk()
+    chunk["index"] = index
+    chunk["text"] = text
+    resolved_finish = (
+        finish_reason if finish_reason is not None else ("stop" if finished else None)
+    )
+    chunk["finish_reason"] = resolved_finish
+    chunk["is_finished"] = bool(resolved_finish)
+    chunk["tool_use"] = None
+    chunk["usage"] = merge_usage_stats(None, usage)
+    return chunk
+
+
+def create_tool_chunk(
+    *,
+    name: str,
+    arguments: str,
+    tool_call_id: str | None = None,
+    index: int = 0,
+    finished: bool = False,
+    finish_reason: str | None = None,
+) -> GenericStreamingChunk:
+    """Create a GenericStreamingChunk describing a tool invocation."""
+
+    chunk = GenericStreamingChunk()
+    chunk["index"] = index
+    chunk["text"] = ""
+    resolved_finish = (
+        finish_reason if finish_reason is not None else ("stop" if finished else None)
+    )
+    chunk["finish_reason"] = resolved_finish
+    chunk["is_finished"] = bool(resolved_finish)
+    chunk["tool_use"] = {
+        "name": name,
+        "arguments": arguments,
+    }
+    if tool_call_id:
+        chunk["tool_use"]["id"] = tool_call_id
+    chunk["usage"] = None
+    return chunk

@@ -15,7 +15,12 @@ Run this example to see UUTEL's core functionality in action.
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from typing import Any
+from unittest.mock import Mock, patch
+
+from litellm.types.utils import ModelResponse
 
 from uutel import (
     AuthenticationError,
@@ -29,6 +34,8 @@ from uutel import (
     transform_provider_to_openai,
     validate_model_name,
 )
+from uutel.core.runners import SubprocessResult
+from uutel.providers.claude_code import ClaudeCodeUU
 
 
 class ExampleAuth(BaseAuth):
@@ -224,6 +231,74 @@ def demonstrate_core_functionality():
     print("\n✨ Example completed successfully!")
 
 
+def demonstrate_claude_fixture_replay() -> None:
+    """Replay the recorded Claude CLI fixture without requiring the CLI."""
+
+    print("\n8️⃣ Claude Code Fixture Replay")
+    fixture_path = (
+        Path(__file__).resolve().parent.parent
+        / "tests"
+        / "data"
+        / "providers"
+        / "claude"
+        / "simple_completion.json"
+    )
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    provider = ClaudeCodeUU()
+    model_response = ModelResponse()
+    model_response.choices = [Mock()]
+    model_response.choices[0].message = Mock()
+    model_response.choices[0].message.content = ""
+    model_response.choices[0].message.tool_calls = None
+    model_response.choices[0].finish_reason = None
+    model_response.usage = None
+
+    def _fake_run(command: list[str], **_: Any) -> SubprocessResult:
+        return SubprocessResult(
+            command=tuple(command),
+            returncode=0,
+            stdout=json.dumps(payload),
+            stderr="",
+            duration_seconds=0.1,
+        )
+
+    with (
+        patch.object(provider, "_resolve_cli", return_value="claude"),
+        patch(
+            "uutel.providers.claude_code.provider.run_subprocess",
+            new=_fake_run,
+        ),
+    ):
+        result = provider.completion(
+            model="claude-sonnet-4",
+            messages=[{"role": "user", "content": "Say hello"}],
+            api_base="",
+            custom_prompt_dict={},
+            model_response=model_response,
+            print_verbose=lambda *args, **kwargs: None,
+            encoding="utf-8",
+            api_key=None,
+            logging_obj=None,
+            optional_params={},
+        )
+
+    usage = result.usage or {}
+    print(f"   📁 Fixture: {fixture_path.relative_to(Path.cwd())}")
+    print(f"   🧠 Text: {result.choices[0].message.content.strip()}")
+    print(
+        "   📊 Tokens: input={i}, output={o}, total={t}".format(
+            i=usage.get("input_tokens", "?"),
+            o=usage.get("output_tokens", "?"),
+            t=usage.get("total_tokens", "?"),
+        )
+    )
+    print("   🔄 To run live: npm install -g @anthropic-ai/claude-code && claude login")
+    print(
+        "              uutel complete --engine uutel/claude-code/claude-sonnet-4 --stream"
+    )
+
+
 async def demonstrate_async_functionality():
     """Demonstrate async functionality (placeholder)."""
     print("\n🔄 Async Functionality Demo")
@@ -242,6 +317,7 @@ def main():
     try:
         # Run synchronous examples
         demonstrate_core_functionality()
+        demonstrate_claude_fixture_replay()
 
         # Run async examples
         asyncio.run(demonstrate_async_functionality())

@@ -22,25 +22,6 @@ Expose real LiteLLM-compatible providers for Claude Code CLI, Gemini CLI Core, G
 
 ## Phase Breakdown
 
-### Phase 0 – Groundwork & Research Validation
-- Verify availability of required CLIs (`claude`, `gemini`, `codex`) and document installation prerequisites in README.
-- Capture sample outputs by running each CLI manually; store anonymised fixtures under `tests/data` for replay-based tests.
-- Investigate credential file schemas (`~/.claude-code`, `~/.gemini`, `~/.codex`) and plan secure loading; confirm refresh flows.
-- Decide on Python packages for API interaction:
-  - `google-auth`, `google-auth-oauthlib`, `google-generativeai` for Gemini & Cloud Code.
-  - Custom HTTP calls for Codex (no official Python SDK) using `httpx`.
-  - `anthropic` optional; likely rely on CLI subprocess for Claude Code.
-- Deliverables: research notes in `WORK.md`, fixtures saved, installation steps drafted.
-- Tests: add failing placeholder tests that assert fixtures exist and parsers raise `NotImplementedError` until implemented.
-
-### Phase 1 – Core Infrastructure Upgrades
-- Create `uutel.core.runners` module with reusable subprocess runner handling stdout streaming, cancellation, and timeouts.
-- Implement credential loaders in `uutel.core.auth` for CLI-based providers (Claude, Codex) and OAuth-based providers (Gemini, Cloud Code) with caching and refresh hooks.
-- Build generic streaming adapter that converts provider-specific events into `GenericStreamingChunk`.
-- Extend error taxonomy in `uutel.core.exceptions` for auth failures, CLI exit codes, HTTP errors.
-- Update `uutel.core.utils` to support tool payload encoding/decoding and JSON schema injection helpers.
-- Tests: unit tests for subprocess runner (mocked), credential loaders (fixtures), streaming adapter conversions.
-
 ### Phase 2 – Implement OpenAI Codex Provider First (baseline)
 - Replace `CodexUU` mock completion with real HTTP calls to ChatGPT backend endpoints using tokens from `CodexAuth` logic.
 - Support endpoints for standard completion and streamed SSE (map to `GenericStreamingChunk`).
@@ -50,13 +31,13 @@ Expose real LiteLLM-compatible providers for Claude Code CLI, Gemini CLI Core, G
 - CLI smoke tests: `uutel complete --engine uutel/codex/...` should return non-mock output when credentials present.
 
 ### Phase 3 – Implement Gemini CLI Provider
-- Build Gemini API client wrapper using `google-generativeai` or direct REST with `google.auth.credentials`. Load OAuth creds from `~/.gemini/oauth_creds.json` or accept API key via config.
-- Support text completions, JSON schema responses, tool/function calling (map to LiteLLM tool schema), and image (base64) attachments.
-- Implement streaming via SSE or `stream_generate_content` depending on library.
+- ✅ Completed: API-key path using `google-generativeai` with JSON schema tooling, tool call support, and text/multimodal content conversion.
+- Implement CLI/OAuth parity for advanced features (multimodal commands, diagnostics) and capture additional recorded fixtures.
 - Provide parameter validation (reject unsupported frequency/presence penalties, etc.) with warnings.
-- Tests: mocked responses verifying prompt conversion, schema injection, tool call mapping, streaming. Credential loader test ensures tokens refreshed when expired.
+- Tests: extend mocked coverage for CLI fallback streaming and refresh edge cases; maintain credential loader refresh assertions.
 
 ### Phase 4 – Implement Google Cloud Code Provider
+- ✅ Baseline `/v1internal` completion + streaming paths with tool/JSON schema support landed (2025-09-30)
 - Implement OAuth2 client using `google-auth-oauthlib` to read Cloud Code credentials (project-specific). Provide fallback for service account JSON path.
 - Port message conversion logic from TS: system instructions, tool config, JSON schema injection.
 - Call `/v1internal:generateContent` with appropriate headers and handle response structure (candidates, usage metadata, tool calls).
@@ -64,18 +45,16 @@ Expose real LiteLLM-compatible providers for Claude Code CLI, Gemini CLI Core, G
 - Tests: contract tests with recorded responses, ensure warnings emitted for unsupported settings, verify tool call conversion.
 
 ### Phase 5 – Implement Claude Code CLI Provider
-- Use subprocess runner to invoke `claude api --json --model <model>` (or equivalent) with conversation history piped via stdin.
-- Parse incremental JSONL stdout events into streaming chunks; manage CLI session/resume tokens.
-- Support configuration for allowed/disallowed tools, file system sandbox path, working directory.
-- Implement cancellation by terminating subprocess; handle CLI exit codes/timeouts gracefully.
-- Tests: fixture-based tests replaying recorded CLI output to ensure parser yields correct chunks, ensures tool events converted to LiteLLM tool calls. End-to-end test guarded by env var runs real CLI if available.
+- ✅ Completed (2025-10-01): CLI subprocess integration with JSON payload replay, streaming chunk parsing, tool filtering, working directory support, and cancellation hooks.
+- ✅ Completed: Fixture-driven unit tests covering completion, streaming, cancellation, and CLI unavailability error messaging.
+- Follow-up: consider opt-in live CLI integration tests behind `UUTEL_RUN_LIVE_CLAUDE=1` once credentials available.
 
 ### Phase 6 – Documentation, CLI UX, and Validation
-- Update README with real usage instructions, credential setup steps, troubleshooting.
+- ✅ README updated with live-run instructions and fixture replay notes (2025-10-01).
 - Update `DEPENDENCIES.md` explaining new packages and reasoning.
-- Expand CLI help to surface provider-specific requirements and environment variables.
-- Add examples demonstrating real completions (with recorded outputs) and guidelines for streaming & tool calling.
-- Run full test matrix (`uvx hatch test`), measure coverage, document results in `WORK.md` and `CHANGELOG.md`.
+- ✅ CLI help expanded with provider requirements section (2025-10-01).
+- ✅ Examples refreshed with recorded provider outputs and replay instructions (2025-10-01).
+- ✅ uvx hatch test executed post-changes; log results in WORK.md and CHANGELOG.md.
 
 ## Testing & Validation Strategy
 - Follow test-first approach: for each provider feature, write failing test capturing expected behaviour before implementation.
@@ -102,3 +81,10 @@ Expose real LiteLLM-compatible providers for Claude Code CLI, Gemini CLI Core, G
 - Tool/function calling works for providers that support it; unsupported features raise informative errors.
 - Test suite covers authentication, request translation, streaming parsing, and error paths; integration tests optional but passing when run with creds.
 - Documentation reflects real setup steps; `CHANGELOG.md` records implementation milestones.
+
+## Phase 7 – LiteLLM Adapter Alignment (2025-10-02)
+
+- Replace the remaining mock-only `CodexCustomLLM` shim with a thin delegation layer to `CodexUU` so CLI flows hit real network-backed logic.
+- Register all UU providers (`CodexUU`, `ClaudeCodeUU`, `GeminiCLIUU`, `CloudCodeUU`) with LiteLLM and surface canonical engine strings plus provider aliases (`codex`, `claude`, `gemini`, `cloud`) for quick CLI selection.
+- Update CLI UX/tests/examples to remove “mock response” phrasing, showcase realistic fixture-backed snippets, and document default model mapping for each alias.
+- Ensure new behaviour is covered by unit tests (delegation, alias validation) while remaining offline by patching provider calls.

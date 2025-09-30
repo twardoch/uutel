@@ -170,17 +170,29 @@ uutel test --verbose
 uutel complete --prompt "test"  # Omit --engine to use default
 ```
 
-#### Authentication Issues
+#### Authentication Setup
 
-Most CLI errors are due to missing authentication. UUTEL currently implements a working Codex provider for demonstration:
+Each provider ships with vendor-specific credentials. Configure these before attempting live requests:
 
-```bash
-# Default engine works out of the box
-uutel complete --prompt "Hello world"
-
-# For future providers, you'll configure authentication separately
-# Each provider will have its own auth setup process
-```
+- **Codex (ChatGPT backend)**
+  - Install CLI: `npm install -g @openai/codex@latest` (installs the `codex` binary).
+  - Authenticate: `codex login` launches OpenAI OAuth and writes `~/.codex/auth.json` with `access_token` and `account_id`.
+  - Alternative: export `OPENAI_API_KEY` to use standard Chat Completions without the Codex CLI token.
+  - Verification: `codex --version` should print ≥0.28; rerun `codex login` if tokens expire.
+- **Claude Code (Anthropic)**
+  - Install CLI: `npm install -g @anthropic-ai/claude-code` (provides the `claude`/`claude-code` binaries).
+  - Authenticate: `claude login` stores refreshed credentials under `~/.claude*/`.
+  - Requirements: Node.js 18+, CLI present on `PATH`.
+  - Verification: `claude --version` confirms installation; rerun `claude login` if completions fail with auth errors.
+- **Gemini CLI Core (Google)**
+  - Install CLI: `npm install -g @google/gemini-cli` (installs the `gemini` binary).
+  - Authenticate via OAuth: `gemini login` writes `~/.gemini/oauth_creds.json`.
+  - Authenticate via API key: export one of `GOOGLE_API_KEY`, `GEMINI_API_KEY`, or `GOOGLE_GENAI_API_KEY`.
+  - Verification: `gemini models list` should succeed once credentials are valid.
+- **Google Cloud Code AI**
+  - Reuses Gemini credentials: prefer `gemini login` (OAuth) or the same Google API key env vars.
+  - Credential lookup order: `~/.gemini/oauth_creds.json`, `~/.config/gemini/oauth_creds.json`, `~/.google-cloud-code/credentials.json`.
+  - Verification: ensure the chosen Google account has access to Cloud Code; rerun `gemini login` if access tokens lapse.
 
 #### Getting More Help
 
@@ -342,6 +354,17 @@ uutel test --verbose
 python examples/basic_usage.py
 ```
 Demonstrates core infrastructure, authentication framework, error handling, and utilities.
+Includes an offline replay of the recorded Claude Code CLI fixture so you can preview responses without installing the CLI.
+
+#### Claude Code Fixture Replay
+```bash
+python examples/basic_usage.py  # replay runs as part of the script output
+```
+Shows the deterministic Claude Code fixture output and provides the exact commands required to enable live runs:
+
+1. `npm install -g @anthropic-ai/claude-code`
+2. `claude login`
+3. `uutel complete --engine uutel/claude-code/claude-sonnet-4 --stream`
 
 #### Tool Calling Example
 ```bash

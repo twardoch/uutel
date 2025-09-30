@@ -1,0 +1,29 @@
+{
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "MODEL",
+          "parts": [
+            {
+              "text": "Here is a short deployment checklist you can add to your project README: run automated tests, review infrastructure changes, verify environment variables, and monitor the rollout."
+            }
+          ]
+        },
+        "finishReason": "STOP",
+        "safetyRatings": [
+          { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "probability": "NEGLIGIBLE" },
+          { "category": "HARM_CATEGORY_HARASSMENT", "probability": "NEGLIGIBLE" },
+          { "category": "HARM_CATEGORY_HATE_SPEECH", "probability": "NEGLIGIBLE" },
+          { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "probability": "NEGLIGIBLE" }
+        ],
+        "index": 0
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 38,
+      "candidatesTokenCount": 97,
+      "totalTokenCount": 135
+    }
+  }
+}

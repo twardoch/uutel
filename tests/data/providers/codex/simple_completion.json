@@ -1,0 +1,27 @@
+{
+  "id": "chatcmpl-REDACTED",
+  "object": "chat.completion",
+  "created": 1759357141,
+  "model": "gpt-4o-codex",
+  "status": "completed",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Here is a Python function that sorts a list using the built-in sorted call.\n\n```python\ndef sort_list(values: list[int]) -> list[int]:\n    \"\"\"Return a new list containing the sorted values.\"\"\"\n    return sorted(values)\n```"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 28,
+    "completion_tokens": 48,
+    "total_tokens": 76
+  },
+  "account": {
+    "id": "acct_REDACTED",
+    "subscription": "chatgpt-plus",
+    "quota_remaining": 95000
+  }
+}

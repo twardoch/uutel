@@ -18,26 +18,60 @@ from uutel.core.config import (
     validate_config,
 )
 from uutel.core.logging_config import get_logger
+from uutel.providers.claude_code import ClaudeCodeUU
+from uutel.providers.cloud_code import CloudCodeUU
 from uutel.providers.codex.custom_llm import CodexCustomLLM
+from uutel.providers.gemini_cli import GeminiCLIUU
 
 logger = get_logger(__name__)
 
 # Available engines for validation
 AVAILABLE_ENGINES = {
-    "my-custom-llm/codex-large": "Large Codex model (default)",
-    "my-custom-llm/codex-mini": "Mini Codex model - faster responses",
-    "my-custom-llm/codex-turbo": "Turbo Codex model - balanced speed/quality",
-    "my-custom-llm/codex-fast": "Fast Codex model - quick responses",
-    "my-custom-llm/codex-preview": "Preview Codex model - latest features",
+    "my-custom-llm/codex-large": "OpenAI GPT-4o via Codex session tokens (default)",
+    "my-custom-llm/codex-mini": "GPT-4o-mini via Codex session tokens",
+    "my-custom-llm/codex-turbo": "GPT-4 Turbo via Codex session tokens",
+    "my-custom-llm/codex-fast": "GPT-3.5 Turbo via Codex session tokens",
+    "my-custom-llm/codex-preview": "o1-preview via Codex session tokens",
+    "uutel-codex/gpt-4o": "Direct GPT-4o using Codex provider (OpenAI API compatible)",
+    "uutel-claude/claude-sonnet-4": "Claude Code Sonnet 4 via claude CLI",
+    "uutel-gemini/gemini-2.5-pro": "Gemini 2.5 Pro via google-generativeai or gemini CLI",
+    "uutel-cloud/gemini-2.5-pro": "Cloud Code Gemini 2.5 Pro via OAuth credentials",
 }
+
+ENGINE_ALIASES = {
+    "codex": "my-custom-llm/codex-large",
+    "claude": "uutel-claude/claude-sonnet-4",
+    "gemini": "uutel-gemini/gemini-2.5-pro",
+    "cloud": "uutel-cloud/gemini-2.5-pro",
+}
+
+PROVIDER_REQUIREMENTS = [
+    (
+        "Claude Code",
+        "Requires @anthropic-ai/claude-code CLI (npm install -g @anthropic-ai/claude-code) and claude login",
+    ),
+    (
+        "Gemini CLI",
+        "Install @google/gemini-cli, run gemini login or set GOOGLE_API_KEY",
+    ),
+    (
+        "Cloud Code",
+        "Share Gemini OAuth (gemini login) or GOOGLE_API_KEY, plus CLOUD_CODE_PROJECT",
+    ),
+]
 
 
 def setup_providers() -> None:
     """Setup UUTEL providers with LiteLLM."""
     try:
         logger.debug("Setting up UUTEL providers...")
+        codex_handler = CodexCustomLLM()
         litellm.custom_provider_map = [
-            {"provider": "my-custom-llm", "custom_handler": CodexCustomLLM()},
+            {"provider": "my-custom-llm", "custom_handler": codex_handler},
+            {"provider": "uutel-codex", "custom_handler": codex_handler},
+            {"provider": "uutel-claude", "custom_handler": ClaudeCodeUU()},
+            {"provider": "uutel-gemini", "custom_handler": GeminiCLIUU()},
+            {"provider": "uutel-cloud", "custom_handler": CloudCodeUU()},
         ]
         logger.debug("UUTEL providers registered with LiteLLM")
     except Exception as e:
@@ -50,14 +84,23 @@ def validate_engine(engine: str) -> str:
     if not engine or not isinstance(engine, str):
         raise ValueError("Engine name is required and must be a string")
 
-    if engine not in AVAILABLE_ENGINES:
+    engine_key = engine.strip()
+    alias_target = ENGINE_ALIASES.get(engine_key.lower())
+    if alias_target:
+        engine_key = alias_target
+
+    if engine_key not in AVAILABLE_ENGINES:
         available = "\n  ".join(f"{k}: {v}" for k, v in AVAILABLE_ENGINES.items())
+        aliases = "\n  ".join(
+            f"{alias} -> {target}" for alias, target in ENGINE_ALIASES.items()
+        )
         raise ValueError(
             f"Unknown engine '{engine}'.\n\n"
             f"Available engines:\n  {available}\n\n"
+            f"Alias shortcuts:\n  {aliases}\n\n"
             f"💡 Try: uutel list_engines to see all options"
         )
-    return engine
+    return engine_key
 
 
 def validate_parameters(max_tokens: int, temperature: float) -> None:
@@ -261,6 +304,14 @@ class UUTELCLI:
         print("📝 Usage Examples:")
         print('  uutel complete "Hello" --engine my-custom-llm/codex-mini')
         print("  uutel test --engine my-custom-llm/codex-fast")
+        print()
+        print("🔐 Provider Requirements:")
+        for name, guidance in PROVIDER_REQUIREMENTS:
+            print(f"  {name}: {guidance}")
+        print()
+        print("Aliases:")
+        for alias, target in ENGINE_ALIASES.items():
+            print(f"  {alias} -> {target}")
 
     def test(
         self, engine: str = "my-custom-llm/codex-large", verbose: bool = True

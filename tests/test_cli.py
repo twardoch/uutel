@@ -37,10 +37,23 @@ class TestUUTELCLI:
         assert "my-custom-llm/codex-turbo" in captured.out
         assert "my-custom-llm/codex-fast" in captured.out
         assert "my-custom-llm/codex-preview" in captured.out
+        assert "uutel-claude/claude-sonnet-4" in captured.out
+        assert "uutel-gemini/gemini-2.5-pro" in captured.out
+        assert "uutel-cloud/gemini-2.5-pro" in captured.out
 
         # Check descriptions are present
         assert "Large Codex model" in captured.out
-        assert "Coming Soon:" in captured.out
+        assert "Usage Examples" in captured.out
+        assert "Provider Requirements" in captured.out
+        assert "Claude Code" in captured.out
+        assert "Gemini CLI" in captured.out
+
+        # Alias summary is shown for quick selection
+        assert "Aliases:" in captured.out
+        assert "codex -> my-custom-llm/codex-large" in captured.out
+        assert "claude -> uutel-claude/claude-sonnet-4" in captured.out
+        assert "gemini -> uutel-gemini/gemini-2.5-pro" in captured.out
+        assert "cloud -> uutel-cloud/gemini-2.5-pro" in captured.out
 
     @patch("litellm.completion")
     def test_complete_command_basic(self, mock_completion, capsys):
@@ -106,6 +119,20 @@ class TestUUTELCLI:
         assert call_args[1]["temperature"] == 0.5
 
     @patch("litellm.completion")
+    def test_complete_command_with_alias(self, mock_completion):
+        """Alias names resolve to their canonical engine strings."""
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Alias response"
+        mock_completion.return_value = mock_response
+
+        self.cli.complete("Alias prompt", engine="codex")
+
+        call_args = mock_completion.call_args
+        assert call_args[1]["model"] == "my-custom-llm/codex-large"
+
+    @patch("litellm.completion")
     def test_complete_command_streaming(self, mock_completion, capsys):
         """Test complete command with streaming enabled."""
         # Mock streaming response
@@ -139,9 +166,10 @@ class TestUUTELCLI:
         result = self.cli.complete("Test prompt")
 
         # Verify error is handled gracefully with enhanced format
-        assert "❌ Error: API Error" in result
+        assert "❌ Error in completion: API Error" in result
         captured = capsys.readouterr()
-        assert "❌ Error: API Error" in captured.err
+        assert "❌ Error in completion: API Error" in captured.err
+        assert "💡 Use --verbose for more details" in captured.err
 
     @patch("litellm.completion")
     def test_complete_command_streaming_error(self, mock_completion, capsys):
@@ -152,9 +180,10 @@ class TestUUTELCLI:
         result = self.cli.complete("Test prompt", stream=True)
 
         # Verify streaming error is handled with enhanced format
-        assert "❌ Error: Streaming Error" in result
+        assert "❌ Error in streaming: Streaming Error" in result
         captured = capsys.readouterr()
-        assert "❌ Error: Streaming Error" in captured.err
+        assert "❌ Error in streaming: Streaming Error" in captured.err
+        assert "💡 Use --verbose for more details" in captured.err
 
     @patch("uutel.__main__.UUTELCLI.complete")
     def test_test_command(self, mock_complete):
@@ -182,6 +211,17 @@ class TestUUTELCLI:
         # Verify default engine is used
         call_args = mock_complete.call_args
         assert call_args[1]["engine"] == "my-custom-llm/codex-large"
+
+    @patch("uutel.__main__.UUTELCLI.complete")
+    def test_test_command_alias_engine(self, mock_complete):
+        """Alias inputs should resolve to canonical engines in test command."""
+
+        mock_complete.return_value = "Alias test response"
+
+        self.cli.test("claude")
+
+        call_args = mock_complete.call_args
+        assert call_args[1]["engine"] == "uutel-claude/claude-sonnet-4"
 
     @patch("litellm.completion")
     def test_verbose_logging_enabled(self, mock_completion):
@@ -238,9 +278,10 @@ class TestCLIParameterValidation:
         result = self.cli.complete("")
 
         # Verify empty prompt is rejected with helpful message
-        assert "❌ Prompt is required and must be a non-empty string" in result
+        assert "❌ Prompt is required and cannot be empty" in result
         captured = capsys.readouterr()
-        assert "❌ Prompt is required and must be a non-empty string" in captured.err
+        assert "❌ Prompt is required and cannot be empty" in captured.err
+        assert '💡 Try: uutel complete "Your prompt here"' in captured.err
 
     @patch("litellm.completion")
     def test_long_prompt_handling(self, mock_completion):
@@ -390,9 +431,10 @@ class TestCLIErrorScenarios:
 
         result = self.cli.complete("Test prompt")
 
-        assert "❌ Error: Network unavailable" in result
+        assert "❌ Network error in completion" in result
         captured = capsys.readouterr()
-        assert "❌ Error: Network unavailable" in captured.err
+        assert "❌ Network error in completion" in captured.err
+        assert "💡 Check your internet connection" in captured.err
 
     @patch("litellm.completion")
     def test_timeout_error_handling(self, mock_completion, capsys):
@@ -401,7 +443,10 @@ class TestCLIErrorScenarios:
 
         result = self.cli.complete("Test prompt")
 
-        assert "❌ Error: Request timeout" in result
+        assert "❌ Request timeout in completion" in result
+        captured = capsys.readouterr()
+        assert "❌ Request timeout in completion" in captured.err
+        assert "💡 Try reducing max_tokens" in captured.err
 
     @patch("litellm.completion")
     def test_authentication_error_handling(self, mock_completion, capsys):
@@ -410,7 +455,10 @@ class TestCLIErrorScenarios:
 
         result = self.cli.complete("Test prompt")
 
-        assert "❌ Error: Authentication failed" in result
+        assert "❌ Authentication failed in completion" in result
+        captured = capsys.readouterr()
+        assert "❌ Authentication failed in completion" in captured.err
+        assert "💡 Check your API keys" in captured.err
 
     @patch("litellm.completion")
     def test_rate_limit_error_handling(self, mock_completion, capsys):
@@ -419,7 +467,10 @@ class TestCLIErrorScenarios:
 
         result = self.cli.complete("Test prompt")
 
-        assert "❌ Error: Rate limit exceeded" in result
+        assert "❌ Rate limit exceeded in completion" in result
+        captured = capsys.readouterr()
+        assert "❌ Rate limit exceeded in completion" in captured.err
+        assert "💡 Try again in a few seconds" in captured.err
 
     @patch("uutel.__main__.setup_providers")
     def test_provider_setup_error_handling(self, mock_setup):

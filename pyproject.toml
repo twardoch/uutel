@@ -115,6 +115,7 @@ gemini-cli = [
     "google-auth-oauthlib>=1.2.0",   # OAuth flow support
     "google-cloud-aiplatform>=1.55.0", # Vertex AI integration
     "google-api-python-client>=2.130.0", # Google API client
+    "google-generativeai>=0.7.0",    # Official Gemini API bindings
 ]
 
 cloud-code = [

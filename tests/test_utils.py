@@ -8,11 +8,14 @@ from typing import Any
 from uutel.core.utils import (
     RetryConfig,
     create_http_client,
+    create_text_chunk,
     create_tool_call_response,
+    create_tool_chunk,
     extract_provider_from_model,
     extract_tool_calls_from_response,
     format_error_message,
     get_error_debug_info,
+    merge_usage_stats,
     transform_openai_to_provider,
     transform_provider_to_openai,
     transform_provider_tools_to_openai,
@@ -558,3 +561,43 @@ class TestToolCallExtractionEdgeCases:
         response = {"choices": [{"message": {}}]}
         result = extract_tool_calls_from_response(response)
         assert result == []
+
+
+class TestStreamingChunks:
+    """Ensure streaming helpers build GenericStreamingChunk structures."""
+
+    def test_create_text_chunk_marks_finish(self) -> None:
+        chunk = create_text_chunk(
+            "hello", index=2, finished=True, usage={"completion_tokens": 1}
+        )
+        assert chunk["index"] == 2
+        assert chunk["text"] == "hello"
+        assert chunk["finish_reason"] == "stop"
+        assert chunk["is_finished"] is True
+        assert chunk["usage"]["completion_tokens"] == 1
+
+    def test_create_tool_chunk_embeds_tool_information(self) -> None:
+        chunk = create_tool_chunk(
+            name="web_search",
+            arguments='{"query": "docs"}',
+            tool_call_id="abc123",
+            index=1,
+        )
+        assert chunk["index"] == 1
+        assert chunk["text"] == ""
+        assert chunk["tool_use"] == {
+            "id": "abc123",
+            "name": "web_search",
+            "arguments": '{"query": "docs"}',
+        }
+
+    def test_merge_usage_stats_combines_counts(self) -> None:
+        combined = merge_usage_stats(
+            {"prompt_tokens": 10, "completion_tokens": 5},
+            {"prompt_tokens": 2, "completion_tokens": 1},
+        )
+        assert combined == {
+            "prompt_tokens": 12,
+            "completion_tokens": 6,
+            "total_tokens": 18,
+        }

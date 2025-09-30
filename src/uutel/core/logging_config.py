@@ -1,8 +1,5 @@
 # this_file: src/uutel/core/logging_config.py
-"""Simple logging configuration for UUTEL.
-
-This module provides basic logging functionality focused on core needs only.
-"""
+"""UUTEL logging configuration - simplified basic setup only."""
 
 from __future__ import annotations
 
@@ -12,17 +9,17 @@ import sys
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a basic logger for a specific module.
+    """Get a logger for a specific module.
 
     Args:
         name: Logger name (typically __name__)
 
     Returns:
-        Basic Python logger instance
+        Logger instance
     """
     logger = logging.getLogger(name)
 
-    # Only configure if not already configured
+    # Ensure logger has handlers
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stderr)
         formatter = logging.Formatter(

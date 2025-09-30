@@ -4,6 +4,46 @@
 This module provides base classes and utilities for handling authentication
 across different AI providers. Each provider should implement its own
 authentication class extending BaseAuth.
+
+Example usage:
+    Creating a custom authentication class:
+        from uutel.core.auth import BaseAuth, AuthResult
+        from datetime import datetime, timedelta
+
+        class MyProviderAuth(BaseAuth):
+            def authenticate(self, **kwargs) -> AuthResult:
+                api_key = kwargs.get("api_key")
+                if not api_key:
+                    return AuthResult(
+                        success=False,
+                        error="API key required"
+                    )
+
+                # Perform authentication logic
+                return AuthResult(
+                    success=True,
+                    token=f"Bearer {api_key}",
+                    expires_at=datetime.now() + timedelta(hours=1)
+                )
+
+            def get_headers(self) -> dict[str, str]:
+                token = self.get_token()
+                return {"Authorization": token} if token else {}
+
+    Using authentication:
+        auth = MyProviderAuth()
+        result = auth.authenticate(api_key="your-api-key")
+
+        if result.success:
+            headers = auth.get_headers()
+            # Use headers in HTTP requests
+        else:
+            print(f"Authentication failed: {result.error}")
+
+    Checking token validity:
+        if auth.is_authenticated():
+            # Token is valid and not expired
+            headers = auth.get_headers()
 """
 
 from __future__ import annotations

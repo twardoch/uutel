@@ -10,7 +10,7 @@
 #------------------------------------------------------------------------------
 [project]
 name = "uutel"
-description = "Universal AI Provider for LiteLLM - extends LiteLLM with Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex providers for unified LLM inferencing"
+description = "Universal AI Provider for LiteLLM with CLI interface - extends LiteLLM with Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex providers for unified LLM inferencing and command-line completions"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -25,7 +25,9 @@ keywords = [
     "providers", "universal", "anthropic", "google", "api", "sdk",
     "machine-learning", "artificial-intelligence", "chat", "completion",
     "streaming", "tool-calling", "function-calling", "mcp", "oauth",
-    "vertex-ai", "cloud-code", "chatgpt", "gpt", "nlp", "conversational-ai"
+    "vertex-ai", "cloud-code", "chatgpt", "gpt", "nlp", "conversational-ai",
+    "cli", "command-line", "terminal", "console", "fire", "inference",
+    "single-turn", "prompt", "engine", "completion-tool", "ai-cli"
 ]
 dynamic = ["version"]
 
@@ -34,6 +36,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
@@ -47,6 +50,9 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Text Processing :: Linguistic",
+    "Topic :: System :: Shells",
+    "Topic :: Terminals",
+    "Topic :: Utilities",
     "Environment :: Console",
     "Environment :: Web Environment",
     "Framework :: AsyncIO",
@@ -56,12 +62,16 @@ classifiers = [
 
 # Core dependencies for UUTEL functionality
 dependencies = [
-    "litellm>=1.74.0",  # Latest with CustomLLM improvements
-    "httpx>=0.27.0",    # Latest stable with performance improvements
-    "aiohttp>=3.9.0",   # Latest stable with security fixes
-    "pydantic>=2.8.0",  # Latest stable v2 with performance improvements
-    "pydantic-settings>=2.4.0",  # Latest stable
-    "loguru>=0.7.2",    # Latest stable with performance improvements
+    "litellm>=1.74.0", # Latest with CustomLLM improvements
+    "httpx[http2]>=0.27.0", # Latest stable with HTTP/2 support
+    "aiohttp>=3.9.0", # Latest stable with security fixes
+    "pydantic>=2.8.0", # Latest stable v2 with performance improvements
+    "pydantic-settings>=2.4.0", # Latest stable
+    "loguru>=0.7.2", # Latest stable with performance improvements
+    "fire>=0.7.1",
+    "psutil>=5.9.0", # System and process monitoring for performance tracking
+    "tomli>=1.2.0; python_version<'3.11'", # TOML reading for Python <3.11
+    "toml>=0.10.2", # TOML writing support
 ]
 
 # Project URLs
@@ -76,10 +86,9 @@ Changelog = "https://github.com/twardoch/uutel/blob/main/CHANGELOG.md"
 "Development Guide" = "https://github.com/twardoch/uutel/blob/main/DEVELOPMENT.md"
 "Contributing" = "https://github.com/twardoch/uutel/blob/main/CONTRIBUTING.md"
 
-# Entry points for CLI tools (if needed in future)
-[project.entry-points]
-# CLI entry point (future expansion)
-# "console_scripts.uutel" = "uutel.cli:main"
+# Entry points for CLI tools
+[project.scripts]
+uutel = "uutel.__main__:main"
 
 # LiteLLM provider registration (automatic discovery)
 [project.entry-points."litellm.providers"]

@@ -4,6 +4,33 @@
 This module provides standardized exception classes for consistent error
 handling across all UUTEL providers. All exceptions inherit from UUTELError
 and include provider context for better debugging.
+
+Example usage:
+    Basic error handling:
+        try:
+            result = provider.completion(model="test", messages=[])
+        except UUTELError as e:
+            print(f"Provider error: {e}")
+            print(f"Provider: {e.provider}")
+            print(f"Error code: {e.error_code}")
+
+    Specific error types:
+        try:
+            provider.authenticate()
+        except AuthenticationError as e:
+            print(f"Auth failed: {e}")
+        except NetworkError as e:
+            print(f"Network issue: {e}")
+        except RateLimitError as e:
+            print(f"Rate limited: {e}")
+
+    Creating custom errors:
+        raise ProviderError(
+            "Model not found",
+            provider="claude-code",
+            error_code="MODEL_NOT_FOUND",
+            debug_context={"requested_model": "invalid-model"}
+        )
 """
 
 from __future__ import annotations

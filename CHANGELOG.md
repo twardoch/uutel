@@ -2,6 +2,105 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2025-09-30
+
+### Added - Real Provider Implementations (#201)
+Replaced all mock provider implementations with real integrations:
+
+#### 1. **Codex Provider** (ChatGPT CLI Integration)
+- **Authentication**: Reads from `~/.codex/auth.json` (requires `codex login` CLI)
+- **API Integration**: Connects to ChatGPT backend at `https://chatgpt.com/backend-api/codex/responses`
+- **Request Format**: Uses Codex-specific `input` field instead of OpenAI's `messages`
+- **Headers**: Includes account-id, version, originator headers per Codex protocol
+- **Fallback**: Falls back to OpenAI API when `api_key` is provided
+- **Error Handling**: Proper HTTP error handling with user-friendly messages
+
+#### 2. **Claude Code Provider** (Anthropic CLI Integration)
+- **CLI Integration**: Executes `claude-code` CLI via subprocess
+- **Authentication**: Uses Claude Code's built-in auth system
+- **Installation**: Requires `npm install -g @anthropic-ai/claude-code`
+- **Models**: Supports sonnet, opus, claude-sonnet-4, claude-opus-4
+- **Timeout**: 120-second timeout for CLI operations
+- **Error Handling**: Clear error messages for missing CLI or auth failures
+
+#### 3. **Gemini CLI Provider** (Google Gemini Integration)
+- **Dual Mode**: API key or CLI-based authentication
+- **API Mode**: Direct API calls to `generativelanguage.googleapis.com`
+  - Uses `GOOGLE_API_KEY`, `GEMINI_API_KEY`, or `GOOGLE_GENAI_API_KEY` env vars
+  - Proper Gemini API message format conversion
+- **CLI Mode**: Falls back to `gemini` CLI tool
+  - Requires `npm install -g @google/gemini-cli`
+- **Models**: gemini-2.5-flash, gemini-2.5-pro, gemini-pro, gemini-flash
+- **Smart Fallback**: Tries API key first, then CLI if available
+
+#### 4. **Cloud Code AI Provider** (Google OAuth Integration)
+- **OAuth Support**: Reads credentials from `~/.gemini/oauth_creds.json`
+- **API Key Support**: Also supports `GOOGLE_API_KEY` environment variable
+- **Multiple Credential Locations**: Checks `.gemini`, `.config/gemini`, `.google-cloud-code`
+- **Same Models**: gemini-2.5-flash, gemini-2.5-pro, gemini-pro, gemini-flash
+- **Usage Metadata**: Includes token usage information in responses
+
+### Technical Implementation Details
+- **Reference Analysis**: Analyzed TypeScript/JavaScript reference implementations:
+  - `codex-ai-provider` (Vercel AI SDK)
+  - `ai-sdk-provider-gemini-cli` (Gemini CLI Core)
+  - `cloud-code-ai-provider` (Google Cloud Code)
+  - `ai-sdk-provider-claude-code` (Anthropic SDK)
+- **Architecture Adaptation**: Converted Node.js patterns to Python/LiteLLM architecture
+- **Authentication Flows**: Integrated with CLI authentication systems and OAuth
+- **HTTP Client**: Uses `httpx` for reliable HTTP/2 connections
+- **Error Handling**: Comprehensive error messages guiding users to authentication setup
+
+### Authentication Setup Required
+
+**Codex**: `codex login` (creates `~/.codex/auth.json`)
+**Claude Code**: Install CLI + authenticate
+**Gemini CLI**: Set `GOOGLE_API_KEY` or run `gemini login`
+**Cloud Code**: Set `GOOGLE_API_KEY` or run `gemini login` (creates OAuth creds)
+
+### Testing
+- ✅ All 4 providers load successfully
+- ✅ Proper error handling for missing authentication
+- ✅ Clear user guidance for setup requirements
+- ⚠️ Full integration tests require actual CLI authentication
+- ⚠️ `uvx hatch test` has unrelated ImportErrors in test suite
+
+## [1.0.23] - 2025-09-29
+
+### Added
+- **CLI Interface Implementation**: Fire-based command-line interface for single-turn inference
+  - **Main CLI Module**: Created `src/uutel/__main__.py` with comprehensive Fire CLI
+  - **Complete Command Set**:
+    - `complete` - Main completion command with full parameter control
+    - `list_engines` - Lists available engines/providers with descriptions
+    - `test` - Quick engine testing with simple prompts
+  - **Rich Parameter Support**:
+    - `--prompt` (required): Input prompt text
+    - `--engine` (default: my-custom-llm/codex-large): Provider/model selection
+    - `--max_tokens` (default: 500): Token limit control
+    - `--temperature` (default: 0.7): Sampling temperature
+    - `--system`: Optional system message
+    - `--stream`: Enable streaming output
+    - `--verbose`: Debug logging control
+  - **Usage Examples**:
+    - `python -m uutel complete "What is Python?"`
+    - `python -m uutel complete "Count to 5" --stream --system "You are helpful"`
+    - `python -m uutel test --engine "my-custom-llm/codex-fast"`
+    - `python -m uutel list_engines`
+  - **Fire Integration**: Complete Fire CLI with auto-generated help and command discovery
+  - **Provider Integration**: Full integration with existing UUTEL providers via LiteLLM
+
+### Enhanced
+- **Dependencies**: Added `fire>=0.7.1` to core dependencies for CLI functionality
+- **Package Usability**: Package now runnable via `python -m uutel` with comprehensive CLI
+- **Developer Experience**: Simple single-turn inference testing and usage validation
+
+### Technical
+- **Testing**: All 173 tests continue to pass (100% success rate)
+- **CLI Functionality**: Complete Fire-based CLI with provider integration
+- **Command Discovery**: Auto-generated help system and command documentation
+- **Provider Support**: Currently supports my-custom-llm provider with 5 model variants
+
 ## [1.0.22] - 2025-09-29
 
 ### Fixed

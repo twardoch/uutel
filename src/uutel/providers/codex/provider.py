@@ -7,11 +7,14 @@ OpenAI Codex via session token management and ChatGPT backend.
 
 from __future__ import annotations
 
+# Standard library imports
 from collections.abc import AsyncIterator, Callable, Iterator
 
+# Third-party imports
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
 from litellm.types.utils import GenericStreamingChunk, ModelResponse
 
+# Local imports
 from uutel.core.base import BaseUU
 from uutel.core.exceptions import UUTELError
 from uutel.core.logging_config import get_logger
@@ -39,6 +42,47 @@ class CodexUU(BaseUU):
             "o1-mini",
         ]
 
+    def _load_codex_auth(self) -> tuple[str, str]:
+        """Load Codex authentication from ~/.codex/auth.json.
+
+        Returns:
+            Tuple of (access_token, account_id)
+
+        Raises:
+            UUTELError: If auth file not found or invalid
+        """
+        import json
+        from pathlib import Path
+
+        auth_path = Path.home() / ".codex" / "auth.json"
+
+        if not auth_path.exists():
+            raise UUTELError(
+                f"Codex auth file not found at {auth_path}. "
+                "Please run 'codex login' first to authenticate.",
+                provider="codex",
+            )
+
+        try:
+            with open(auth_path) as f:
+                auth_data = json.load(f)
+
+            # Extract tokens
+            tokens = auth_data.get("tokens", {})
+            access_token = tokens.get("access_token")
+            account_id = tokens.get("account_id")
+
+            if not access_token:
+                raise UUTELError("No access token found in auth.json", provider="codex")
+
+            if not account_id:
+                raise UUTELError("No account ID found in auth.json", provider="codex")
+
+            return access_token, account_id
+
+        except json.JSONDecodeError as e:
+            raise UUTELError(f"Invalid JSON in auth file: {e}", provider="codex") from e
+
     def completion(
         self,
         model: str,
@@ -60,18 +104,18 @@ class CodexUU(BaseUU):
     ) -> ModelResponse:
         """Synchronous completion for Codex provider.
 
-        This is a basic implementation that demonstrates the provider pattern.
-        In a full implementation, this would integrate with actual Codex APIs.
+        Integrates with ChatGPT Codex API using authentication from ~/.codex/auth.json
+        Falls back to OpenAI API if api_key is provided.
 
         Args:
-            model: Model name to use
-            messages: Conversation messages
-            api_base: API base URL
+            model: Model name to use (gpt-4o, gpt-5, etc.)
+            messages: Conversation messages in OpenAI format
+            api_base: API base URL (default: https://chatgpt.com/backend-api)
             custom_prompt_dict: Custom prompt formatting
             model_response: Response object to populate
             print_verbose: Verbose printing function
             encoding: Text encoding
-            api_key: API key for authentication
+            api_key: API key for OpenAI fallback
             logging_obj: Logging object
             optional_params: Additional parameters
             acompletion: Async completion function
@@ -88,6 +132,8 @@ class CodexUU(BaseUU):
             UUTELError: If completion fails
         """
         try:
+            import httpx
+
             logger.debug(f"Codex completion request for model: {model}")
 
             # Basic validation
@@ -97,19 +143,126 @@ class CodexUU(BaseUU):
             if not messages:
                 raise UUTELError("Messages are required", provider="codex")
 
-            # For proof of concept, return a mock response
-            # In real implementation, this would call actual Codex API
-            model_response.model = model
-            model_response.choices[0].message.content = (
-                f"This is a mock response from Codex provider for model {model}. "
-                f"Received {len(messages)} messages. "
-                "In a real implementation, this would call the actual Codex API."
-            )
-            model_response.choices[0].finish_reason = "stop"
+            # Determine if using Codex auth or OpenAI API key
+            use_codex_auth = not api_key
 
-            logger.debug("Codex completion completed successfully")
-            return model_response
+            if use_codex_auth:
+                # Load Codex authentication
+                access_token, account_id = self._load_codex_auth()
 
+                # Use Codex backend API
+                endpoint = api_base or "https://chatgpt.com/backend-api"
+                url = f"{endpoint}/codex/responses"
+
+                # Build Codex-specific headers
+                request_headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "chatgpt-account-id": account_id,
+                    "Content-Type": "application/json",
+                    "version": "0.28.0",
+                    "openai-beta": "responses=experimental",
+                    "originator": "codex_cli_rs",
+                    "user-agent": "codex_cli_rs/0.28.0",
+                    "accept": "text/event-stream",
+                }
+
+                # Convert messages to Codex format (input instead of messages)
+                request_body = {
+                    "model": model,
+                    "input": messages,  # Codex uses 'input' field
+                    "stream": False,
+                    "store": False,
+                    "temperature": optional_params.get("temperature", 0.7),
+                    "max_tokens": optional_params.get("max_tokens", 1000),
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "auto",
+                    },
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": False,
+                }
+            else:
+                # Fall back to OpenAI API
+                endpoint = api_base or "https://api.openai.com/v1"
+                url = f"{endpoint}/chat/completions"
+
+                request_headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                }
+
+                request_body = {
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                    "temperature": optional_params.get("temperature", 0.7),
+                    "max_tokens": optional_params.get("max_tokens", 1000),
+                }
+
+            # Merge with custom headers
+            if headers:
+                request_headers.update(headers)
+
+            # Make HTTP request
+            with httpx.Client(timeout=timeout or 60.0) as http_client:
+                response = http_client.post(
+                    url,
+                    headers=request_headers,
+                    json=request_body,
+                )
+                response.raise_for_status()
+
+                result = response.json()
+
+                # Extract response content
+                if use_codex_auth:
+                    # Codex format
+                    choices = result.get("choices", [])
+                    if not choices:
+                        raise UUTELError(
+                            "No choices in Codex response", provider="codex"
+                        )
+
+                    choice = choices[0]
+                    message = choice.get("message", {})
+                    content = message.get("content", "")
+                    finish_reason = choice.get("finish_reason", "stop")
+
+                    # Extract usage
+                    usage = result.get("usage", {})
+
+                else:
+                    # OpenAI format
+                    choices = result.get("choices", [])
+                    if not choices:
+                        raise UUTELError(
+                            "No choices in OpenAI response", provider="codex"
+                        )
+
+                    choice = choices[0]
+                    message = choice.get("message", {})
+                    content = message.get("content", "")
+                    finish_reason = choice.get("finish_reason", "stop")
+
+                    usage = result.get("usage", {})
+
+                # Populate model response
+                model_response.model = model
+                model_response.choices[0].message.content = content
+                model_response.choices[0].finish_reason = finish_reason
+
+                # Add usage information
+                if usage:
+                    model_response.usage = usage
+
+                logger.debug("Codex completion completed successfully")
+                return model_response
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Codex HTTP error: {e}")
+            raise UUTELError(
+                f"Codex HTTP error: {e.response.status_code}", provider="codex"
+            ) from e
         except Exception as e:
             logger.error(f"Codex completion failed: {e}")
             if isinstance(e, UUTELError):

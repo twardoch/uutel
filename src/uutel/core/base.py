@@ -4,6 +4,36 @@
 This module provides the BaseUU class that serves as the foundation for all
 UUTEL provider implementations. All provider classes follow the naming
 convention {ProviderName}UU.
+
+Example usage:
+    Creating a custom provider:
+        from uutel.core.base import BaseUU
+
+        class MyProviderUU(BaseUU):
+            def __init__(self):
+                super().__init__()
+                self.provider_name = "my-provider"
+                self.supported_models = ["my-model-1.0", "my-model-2.0"]
+
+            def completion(self, model, messages, **kwargs):
+                # Implement your provider's completion logic
+                return {"choices": [{"message": {"role": "assistant", "content": "Response"}}]}
+
+            def streaming(self, model, messages, **kwargs):
+                # Implement streaming logic
+                for chunk in self._generate_chunks():
+                    yield chunk
+
+    Using the provider:
+        provider = MyProviderUU()
+        result = provider.completion("my-model-1.0", [{"role": "user", "content": "Hello"}])
+
+    Provider registration with LiteLLM:
+        import litellm
+        from my_provider import MyProviderUU
+
+        # Register your provider
+        litellm.custom_provider_map["my-provider"] = MyProviderUU
 """
 
 from __future__ import annotations

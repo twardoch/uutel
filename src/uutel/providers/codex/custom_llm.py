@@ -7,9 +7,16 @@ CustomLLM interface and UUTEL's provider implementations.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterator
+
+# Standard library imports
+from typing import Any
+
+# Third-party imports
 import litellm
 from litellm import CustomLLM
 
+# Local imports
 from uutel.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +42,7 @@ class CodexCustomLLM(CustomLLM):
             "o1-mini",
         ]
 
-    def completion(self, *args, **kwargs) -> litellm.ModelResponse:
+    def completion(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
         """Handle completion requests through LiteLLM's CustomLLM interface.
 
         Args:
@@ -108,7 +115,7 @@ class CodexCustomLLM(CustomLLM):
                 raise e from None
             raise litellm.APIConnectionError(f"Codex completion failed: {e}") from e
 
-    async def acompletion(self, *args, **kwargs) -> litellm.ModelResponse:
+    async def acompletion(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
         """Handle async completion requests.
 
         Args:
@@ -122,7 +129,7 @@ class CodexCustomLLM(CustomLLM):
         # In real implementation, this would be properly async
         return self.completion(*args, **kwargs)
 
-    def streaming(self, *args, **kwargs):
+    def streaming(self, *args: Any, **kwargs: Any) -> Iterator[dict[str, Any]]:
         """Handle streaming completion requests.
 
         Args:
@@ -160,7 +167,9 @@ class CodexCustomLLM(CustomLLM):
             logger.error(f"Codex CustomLLM streaming failed: {e}")
             raise litellm.APIConnectionError(f"Codex streaming failed: {e}") from e
 
-    async def astreaming(self, *args, **kwargs):
+    async def astreaming(
+        self, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
         """Handle async streaming completion requests.
 
         Args:

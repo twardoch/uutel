@@ -7,18 +7,41 @@
 
 **UUTEL** is a comprehensive Python package that provides a robust foundation for extending LiteLLM's provider ecosystem. It implements the **Universal Unit (UU)** pattern and provides core infrastructure for custom AI providers including Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex.
 
+## 🚀 Quick CLI Usage
+
+UUTEL includes a powerful command-line interface for instant AI completions:
+
+```bash
+# Install and use immediately
+pip install uutel
+
+# Single-turn completions
+uutel complete --prompt "Explain Python async/await"
+uutel complete --prompt "Write a hello world in Rust" --engine my-custom-llm/codex-mini
+
+# List available engines
+uutel list_engines
+
+# Test engine connectivity
+uutel test --engine my-custom-llm/codex-large
+
+# Get help
+uutel help
+```
+
 ## Current Status: Foundation Complete ✅
 
 UUTEL currently provides a **production-ready foundation** with comprehensive tooling and infrastructure. The core framework is complete and ready for provider implementations.
 
 ### What's Built and Working
 
+- **⚡ Command-Line Interface**: Complete Fire CLI with `uutel` command for instant completions
 - **🏗️ Core Infrastructure**: Complete `BaseUU` class extending LiteLLM's `CustomLLM`
 - **🔐 Authentication Framework**: Flexible `BaseAuth` system with secure credential handling
 - **🛠️ Tool Calling**: 5 OpenAI-compatible utilities for function calling workflows
 - **📡 Streaming Support**: Async/sync streaming with chunk processing and error handling
 - **🚨 Exception Handling**: 7 specialized exception types with provider context
-- **🧪 Testing Infrastructure**: 71 tests with 84% coverage, comprehensive fixtures
+- **🧪 Testing Infrastructure**: 173 tests with comprehensive coverage, including CLI tests
 - **⚙️ CI/CD Pipeline**: Multi-platform testing, code quality, security scanning
 - **📚 Examples**: Working demonstrations of all capabilities
 - **🔧 Developer Experience**: Modern tooling with ruff, mypy, pre-commit ready
@@ -34,18 +57,20 @@ The foundation supports these upcoming provider implementations:
 
 ## Key Features
 
+- **⚡ Command-Line Interface**: Ready-to-use `uutel` CLI for instant AI completions
 - **🔗 LiteLLM Compatibility**: Full adherence to LiteLLM's provider interface patterns
 - **🌐 Unified API**: Consistent OpenAI-compatible interface across all providers
 - **🔐 Authentication Management**: Secure handling of OAuth, API keys, and service accounts
 - **📡 Streaming Support**: Real-time response streaming with comprehensive error handling
 - **🛠️ Tool Calling**: Complete OpenAI-compatible function calling implementation
 - **🚨 Error Handling**: Robust error mapping, fallback mechanisms, and detailed context
-- **🧪 Test Coverage**: 84% coverage with comprehensive test suite
+- **🧪 Test Coverage**: Comprehensive test suite with CLI testing included
 - **⚙️ Production Ready**: CI/CD pipeline, security scanning, quality checks
 
 ## Installation
 
 ```bash
+# Standard installation (includes CLI)
 pip install uutel
 
 # With all optional dependencies
@@ -53,6 +78,120 @@ pip install uutel[all]
 
 # Development installation
 pip install -e .[dev]
+```
+
+After installation, the `uutel` command is available system-wide:
+
+```bash
+# Verify installation
+uutel help
+
+# Quick test
+uutel complete --prompt "Hello, AI!"
+```
+
+### CLI Usage
+
+UUTEL provides a comprehensive command-line interface with four main commands:
+
+#### `uutel complete` - Run AI Completions
+
+```bash
+# Basic completion
+uutel complete --prompt "Explain machine learning"
+
+# Specify engine
+uutel complete --prompt "Write Python code" --engine my-custom-llm/codex-mini
+
+# Enable streaming output
+uutel complete --prompt "Tell a story" --stream
+
+# Adjust response parameters
+uutel complete --prompt "Summarize this" --max_tokens 500 --temperature 0.7
+```
+
+#### `uutel list_engines` - Show Available Engines
+
+```bash
+# List all available engines with descriptions
+uutel list_engines
+```
+
+#### `uutel test` - Test Engine Connectivity
+
+```bash
+# Test default engine
+uutel test
+
+# Test specific engine
+uutel test --engine my-custom-llm/codex-large --verbose
+```
+
+#### `uutel help` - Get Help
+
+```bash
+# Show general help
+uutel help
+
+# Command-specific help
+uutel complete --help
+```
+
+### Troubleshooting CLI Issues
+
+#### Command Not Found: `uutel: command not found`
+
+If you get "command not found" after installation:
+
+```bash
+# 1. Verify installation
+pip list | grep uutel
+
+# 2. Check if pip bin directory is in PATH
+python -m site --user-base
+
+# 3. Use Python module syntax as fallback
+python -m uutel complete --prompt "test"
+
+# 4. Reinstall with user flag
+pip install --user uutel
+```
+
+#### Engine Errors: Provider Not Available
+
+```bash
+# Check available engines
+uutel list_engines
+
+# Test connectivity
+uutel test --verbose
+
+# Use default engine
+uutel complete --prompt "test"  # Omit --engine to use default
+```
+
+#### Authentication Issues
+
+Most CLI errors are due to missing authentication. UUTEL currently implements a working Codex provider for demonstration:
+
+```bash
+# Default engine works out of the box
+uutel complete --prompt "Hello world"
+
+# For future providers, you'll configure authentication separately
+# Each provider will have its own auth setup process
+```
+
+#### Getting More Help
+
+```bash
+# Enable verbose output for debugging
+uutel test --verbose
+
+# Check specific command help
+uutel complete --help
+uutel list_engines --help
+uutel test --help
 ```
 
 ## Quick Start
@@ -187,19 +326,30 @@ uutel/
 
 UUTEL includes comprehensive examples demonstrating all capabilities:
 
-### Basic Usage Example
+### CLI Usage Examples
+```bash
+# Quick completion examples
+uutel complete --prompt "Explain Python decorators"
+uutel complete --prompt "Write a sorting algorithm" --engine my-custom-llm/codex-mini
+uutel list_engines
+uutel test --verbose
+```
+
+### Programmatic API Examples
+
+#### Basic Usage Example
 ```bash
 python examples/basic_usage.py
 ```
 Demonstrates core infrastructure, authentication framework, error handling, and utilities.
 
-### Tool Calling Example
+#### Tool Calling Example
 ```bash
 python examples/tool_calling_example.py
 ```
 Complete demonstration of OpenAI-compatible tool calling with validation, transformation, and workflow simulation.
 
-### Streaming Example
+#### Streaming Example
 ```bash
 python examples/streaming_example.py
 ```
@@ -213,7 +363,7 @@ This project uses modern Python tooling for an excellent developer experience:
 - **[Hatch](https://hatch.pypa.io/)**: Project management and virtual environments
 - **[Ruff](https://github.com/astral-sh/ruff)**: Fast linting and formatting
 - **[MyPy](https://mypy.readthedocs.io/)**: Static type checking
-- **[Pytest](https://pytest.org/)**: Testing framework with 71 tests
+- **[Pytest](https://pytest.org/)**: Testing framework with 173+ tests including CLI coverage
 - **[GitHub Actions](https://github.com/features/actions)**: CI/CD pipeline
 
 ### Quick Setup
@@ -311,11 +461,11 @@ class CodexUU(BaseUU): ...
 
 ### Quality Assurance
 
-- **84% Test Coverage**: 71 comprehensive tests
+- **Comprehensive Test Coverage**: 173+ tests including CLI functionality
 - **CI/CD Pipeline**: Multi-platform testing (Ubuntu, macOS, Windows)
 - **Code Quality**: Ruff formatting, MyPy type checking
 - **Security Scanning**: Bandit and Safety integration
-- **Documentation**: Examples, architecture docs, API reference
+- **Documentation**: Examples, architecture docs, API reference, CLI troubleshooting
 
 ## Roadmap
 
@@ -377,4 +527,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**UUTEL** provides the universal foundation for AI provider integration. Built with modern Python practices, comprehensive testing, and extensibility in mind.
+**UUTEL** provides the universal foundation for AI provider integration with both CLI and programmatic interfaces. Built with modern Python practices, comprehensive testing, and extensibility in mind.

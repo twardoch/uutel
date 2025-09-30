@@ -6,14 +6,16 @@ This module provides basic fixtures for testing UUTEL core functionality.
 
 from __future__ import annotations
 
+# Standard library imports
 from typing import Any
 from unittest.mock import MagicMock
 
+# Third-party imports
 import pytest
 from litellm.types.utils import ModelResponse
 
+# Local imports
 from uutel.core import BaseAuth, BaseUU
-from uutel.core.utils import RetryConfig
 
 
 @pytest.fixture
@@ -56,17 +58,6 @@ def sample_model_response() -> ModelResponse:
     response = ModelResponse()
     response.choices = []
     return response
-
-
-@pytest.fixture
-def retry_config() -> RetryConfig:
-    """Return a test RetryConfig with reduced timeouts."""
-    return RetryConfig(
-        max_retries=2,
-        backoff_factor=1.5,
-        retry_on_status=[429, 502, 503, 504],
-        retry_on_exceptions=[ConnectionError, TimeoutError],
-    )
 
 
 @pytest.fixture

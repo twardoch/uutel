@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -147,10 +148,10 @@ def test_basic_usage_example_replays_recorded_outputs():
     assert "Cloud Code (Gemini 2.5 Pro):" in output
 
     snippets = [
-        "returns a sorted copy without mutating the original sequence",
-        "happy to pair-program on tests, refactors, or release tooling",
-        "Gemini 2.5 Pro CLI mirrors the google.generativeai SDK surface",
-        "Before deploying, verify `gcloud auth application-default print-access-token`",
+        "safe sorter that keeps the original list untouched",
+        "Claude Code is ready to jump into refactors, flaky tests",
+        "Gemini 2.5 Pro CLI mirrors google-generativeai: use `--session`",
+        "Before deploying, confirm `gcloud auth application-default print-access-token` works",
     ]
 
     for snippet in snippets:
@@ -624,4 +625,41 @@ def test_recorded_fixtures_live_hint_uses_documented_alias() -> None:
         )
         assert f"--engine {alias}" in hint, (
             f"Live hint for {fixture['label']} should reuse alias {alias}"
+        )
+
+
+def test_recorded_fixtures_use_realistic_transcripts() -> None:
+    """Recorded transcripts should match the curated provider responses used in docs."""
+
+    expected_text = {
+        "codex": (
+            "Absolutely—here's a safe sorter that keeps the original list untouched, "
+            "filters out None entries, and returns a stable sorted copy.\n\n"
+            "```python\nfrom collections.abc import Sequence\n\n"
+            "def tidy_sort(values: Sequence[int | float | None]) -> list[int | float]:\n"
+            "    clean = [value for value in values if value is not None]\n"
+            "    return sorted(clean)\n\n"
+            "print(tidy_sort([5, None, 2, 1]))\n```"
+        ),
+        "claude": (
+            "Hi! Claude Code is ready to jump into refactors, flaky tests, or release "
+            "tooling. Share the failing snippet and I'll propose the next reliable change."
+        ),
+        "gemini": (
+            "Gemini 2.5 Pro CLI mirrors google-generativeai: use `--session` to reuse "
+            "context, `--response-schema` for JSON, and `--tool` to match Python "
+            "function-calling workflows."
+        ),
+        "cloud_code": (
+            "Before deploying, confirm `gcloud auth application-default print-access-token` "
+            "works for the active project, export `CLOUD_CODE_PROJECT`, run integration "
+            "tests, snapshot Terraform state, and watch Cloud Monitoring during rollout."
+        ),
+    }
+
+    for fixture in RECORDED_FIXTURES:
+        payload = json.loads(fixture["path"].read_text(encoding="utf-8"))
+        text, _ = extract_recorded_text(fixture["key"], payload)
+        assert text == expected_text[fixture["key"]], (
+            f"Recorded text for {fixture['label']} should match curated transcript"
         )

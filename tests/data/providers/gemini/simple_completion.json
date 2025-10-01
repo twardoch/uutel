@@ -5,7 +5,7 @@
         "role": "model",
         "parts": [
           {
-            "text": "Gemini 2.5 Pro CLI mirrors the google.generativeai SDK surface, so any `gemini completions` call maps directly to `genai.GenerativeModel`. Enable JSON mode with `--response-schema` and pass tool definitions to match your Python clients when you need function calling or structured outputs."
+            "text": "Gemini 2.5 Pro CLI mirrors google-generativeai: use `--session` to reuse context, `--response-schema` for JSON, and `--tool` to match Python function-calling workflows."
           }
         ]
       },

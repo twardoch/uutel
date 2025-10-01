@@ -7,6 +7,8 @@ import subprocess
 import sys
 from textwrap import dedent
 
+from uutel.__main__ import ENGINE_ALIASES, UUTELCLI
+
 
 def _run_help(*args: str) -> str:
     """Execute `python -m uutel <args> --help` and return stdout."""
@@ -139,4 +141,25 @@ def test_test_help_snapshot() -> None:
 
     assert output == expected, (
         "`uutel test --help` output drifted; update docstring or snapshot expectations."
+    )
+
+
+def test_cli_docstring_alias_guidance_matches_engine_aliases() -> None:
+    """Docstring alias summary should stay in sync with canonical ENGINE_ALIASES data."""
+
+    docstring = UUTELCLI.__doc__ or ""
+    parsed: dict[str, str] = {}
+    for raw_line in docstring.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("- ") or "->" not in line:
+            continue
+        alias, target = (part.strip() for part in line[2:].split("->", 1))
+        parsed[alias] = target
+
+    expected = {
+        alias: ENGINE_ALIASES[alias] for alias in ("codex", "claude", "gemini", "cloud")
+    }
+
+    assert parsed == expected, (
+        "UUTELCLI docstring alias lines drifted from ENGINE_ALIASES entries"
     )

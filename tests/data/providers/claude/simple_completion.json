@@ -15,7 +15,7 @@
   },
   "num_turns": 1,
   "permission_denials": [],
-  "result": "Hello there! Claude Code is in the terminal and happy to pair-program on tests, refactors, or release tooling. Share a snippet or describe the task and I'll suggest the next reliable change.",
+  "result": "Hi! Claude Code is ready to jump into refactors, flaky tests, or release tooling. Share the failing snippet and I'll propose the next reliable change.",
   "session_id": "REDACTED",
   "subtype": "success",
   "total_cost_usd": 0.13770824999999998,

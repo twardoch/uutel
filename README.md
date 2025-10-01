@@ -15,10 +15,11 @@ UUTEL includes a powerful command-line interface for instant AI completions:
 # Install and use immediately
 pip install uutel
 
-# Single-turn completions
-uutel complete --prompt "Explain Python async/await"
-uutel complete --prompt "Write a hello world in Rust" --engine codex
-uutel complete --prompt "List three debugging rituals" --engine claude
+# Single-turn completions (alias-first examples)
+uutel complete --prompt "Write a sorter" --engine codex
+uutel complete --prompt "Say hello" --engine claude
+uutel complete --prompt "Summarise Gemini API" --engine gemini
+uutel complete --prompt "Deployment checklist" --engine cloud
 
 # List available engines
 uutel list_engines

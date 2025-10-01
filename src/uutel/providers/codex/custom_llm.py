@@ -8,6 +8,7 @@ CustomLLM interface and UUTEL's provider implementations.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from difflib import get_close_matches
 from typing import Any
 
 import litellm
@@ -39,6 +40,10 @@ _ENGINE_MODEL_MAP: dict[str, str] = {
     "uutel-codex/o1-mini": "o1-mini",
 }
 
+_ENGINE_MODEL_MAP_CASEFOLD: dict[str, str] = {
+    key.casefold(): value for key, value in _ENGINE_MODEL_MAP.items()
+}
+
 _LITELLM_EXCEPTION_TYPE = getattr(litellm, "LiteLLMException", None)
 
 
@@ -67,28 +72,91 @@ class CodexCustomLLM(CustomLLM):
             response.choices[0].message = litellm.utils.Message()
         return response
 
-    def _map_model_name(self, model: str) -> str:
-        if not model:
+    def _map_model_name(self, model: Any) -> str:
+        if not isinstance(model, str):
+            raise litellm.BadRequestError(
+                "Model must be a string for Codex provider",
+                model="",
+                llm_provider=self.provider_name,
+            )
+
+        trimmed_model = model.strip()
+        if not trimmed_model:
             raise litellm.BadRequestError(
                 "Model name is required for Codex provider",
                 model="",
                 llm_provider=self.provider_name,
             )
 
-        if model in _ENGINE_MODEL_MAP:
-            return _ENGINE_MODEL_MAP[model]
+        normalised_model = trimmed_model.casefold()
 
-        if "/" in model:
-            candidate = model.rsplit("/", 1)[-1]
-            if candidate in self._provider.supported_models:
-                return candidate
+        if normalised_model in _ENGINE_MODEL_MAP_CASEFOLD:
+            return _ENGINE_MODEL_MAP_CASEFOLD[normalised_model]
 
-        if model in self._provider.supported_models:
-            return model
+        supported_lookup = {
+            supported.casefold(): supported
+            for supported in self._provider.supported_models
+        }
+
+        if "/" in trimmed_model:
+            candidate = trimmed_model.rsplit("/", 1)[-1]
+            candidate_key = candidate.casefold()
+            if candidate_key in supported_lookup:
+                return supported_lookup[candidate_key]
+
+        if normalised_model in supported_lookup:
+            return supported_lookup[normalised_model]
+
+        available_candidates = list(_ENGINE_MODEL_MAP.keys()) + list(
+            self._provider.supported_models
+        )
+        display_map = {
+            candidate.casefold(): candidate for candidate in available_candidates
+        }
+        candidate_keys = list(display_map.keys())
+
+        suggestions: list[str] = []
+
+        best_match_keys = get_close_matches(
+            normalised_model,
+            candidate_keys,
+            n=1,
+            cutoff=0.6,
+        )
+        for key in best_match_keys:
+            candidate = display_map.get(key)
+            if candidate and candidate not in suggestions:
+                suggestions.append(candidate)
+
+        prefix = None
+        if "-" in trimmed_model:
+            prefix = trimmed_model.split("-", 1)[0].casefold()
+        elif "/" in trimmed_model:
+            prefix = trimmed_model.split("/", 1)[0].casefold()
+
+        if prefix:
+            for candidate in available_candidates:
+                key = candidate.casefold()
+                if key.startswith(prefix) and candidate not in suggestions:
+                    suggestions.append(candidate)
+                if len(suggestions) >= 3:
+                    break
+
+        if len(suggestions) < 3:
+            for candidate in available_candidates:
+                if candidate not in suggestions:
+                    suggestions.append(candidate)
+                if len(suggestions) >= 3:
+                    break
+
+        suggestion_hint = ""
+        if suggestions:
+            joined = ", ".join(suggestions)
+            suggestion_hint = f" Did you mean: {joined}?"
 
         raise litellm.BadRequestError(
-            f"Unsupported Codex model '{model}'",
-            model=model,
+            f"Unsupported Codex model '{trimmed_model}'.{suggestion_hint}",
+            model=trimmed_model,
             llm_provider=self.provider_name,
         )
 

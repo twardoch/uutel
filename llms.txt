@@ -403,6 +403,7 @@ Project Structure:
 │   ├── 📄 test_claude_provider.py
 │   ├── 📄 test_cli.py
 │   ├── 📄 test_cli_help.py
+│   ├── 📄 test_cli_helpers.py
 │   ├── 📄 test_cli_validators.py
 │   ├── 📄 test_cloud_code_provider.py
 │   ├── 📄 test_codex_provider.py
@@ -4089,22 +4090,123 @@ this_file: CHANGELOG.md
 
 # CHANGELOG
 
+### Hardened - Alias Edge-Case Handling (2025-10-07)
+- `_normalise_engine_alias` now strips stray punctuation/underscores so aliases like `--codex--` and `__gemini__` resolve to their canonical engines across CLI flows.
+- `validate_engine` rejects cross-provider nested shorthands (e.g. `uutel/claude/gemini-2.5-pro`) with descriptive guidance and emits deterministically sorted engine/alias listings for easier support triage.
+- CLI integration now accepts punctuated aliases for `uutel complete`/`uutel test`, ensuring end-to-end alias normalisation.
+- Tests: targeted pytest selections covering the new validator and CLI cases plus full `uvx hatch test` -> 578 passed, 2 skipped (26.73s runtime; harness timeout at 33.9s immediately after pytest success).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #7)
+- /report: Reviewed PLAN.md and TODO.md; git worktree still carries in-flight provider/documentation harmonisation edits awaiting follow-up.
+- Tests: `uvx hatch test` -> 571 passed, 2 skipped (18.53s runtime; command timed out at 25.6s immediately after pytest success).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #6)
+- /report: Reviewed PLAN.md and TODO.md; git worktree still carries in-flight provider/documentation harmonisation edits awaiting follow-up.
+- Tests: `uvx hatch test` -> 567 passed, 2 skipped (17.24s runtime; harness completed without timeout).
+
+### Enhanced - CLI Alias Resilience (2025-10-07)
+- `validate_engine` now short-circuits canonical engine strings while accepting nested `uutel/<alias>/<model>` shorthands via a shared `_resolve_candidate` helper.
+- `uutel list_engines` emits `uutel test --engine <alias>` hints for every primary alias derived from `examples.basic_usage.RECORDED_FIXTURES`, removing hard-coded test guidance.
+- Added alias coverage invariant ensuring each canonical engine is reachable through either a CLI alias or model shorthand, alongside updated CLI tests locking gemini/cloud test hints.
+- Tests: targeted selections (`tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_nested_uutel_model_shorthand`, `tests/test_cli.py::TestUUTELCLI::test_list_engines_command`, `tests/test_cli.py::TestCLIDiagnostics`) plus full `uvx hatch test` -> 571 passed, 2 skipped (17.83s runtime).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #5)
+- /report: Reviewed PLAN.md and TODO.md ahead of cleanup; worktree still carries in-progress provider/doc harmonisation edits staged for follow-up.
+- Tests: `uvx hatch test` -> 564 passed, 2 skipped (17.22s runtime; harness completed without timeout).
+
+### Enhanced - Engine Alias Normalisation (2025-10-07)
+- Added `_normalise_engine_alias` to collapse underscores and whitespace before alias/model lookup, enabling inputs like `gemini_cli` and `gemini 2.5 pro`.
+- Extended `validate_engine` to resolve `uutel/<model>` shorthands via `MODEL_NAME_LOOKUP`, covering `uutel/gpt-4o` and similar patterns.
+- Tests: targeted alias regressions (`tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_model_shorthand_alias` etc.) plus full `uvx hatch test` -> 567 passed, 2 skipped (19.17s runtime).
+
+### Hardened - Gemini CLI Payload Guardrails (2025-10-07)
+- Added regression tests covering CLI completion error payloads, content builder system-prompt folding, and mixed streaming JSON sanitisation.
+- `_completion_via_cli` now invokes `_raise_if_cli_error` before parsing to surface rich `UUTELError` context for CLI failures.
+- `_build_contents` folds system prompts into the first user part and skips tool/function blocks; streaming helpers now drop tool-call events while stripping ANSI control bytes.
+- Tests: targeted Gemini CLI selections plus full `uvx hatch test` -> 564 passed, 2 skipped (19.91s runtime).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #4)
+- /report: Reviewed PLAN.md and TODO.md; git worktree continues to carry in-flight provider/doc updates awaiting upstream merge.
+- Tests: `uvx hatch test` -> 559 passed, 2 skipped (19.86s runtime; harness reported completion without timeout).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #3)
+### Gemini CLI Parameter Sanitisation (2025-10-07)
+- Hardened Gemini CLI generation config via `_coerce_temperature`/`_coerce_max_tokens`, ensuring invalid optional params fall back to defaults across API and CLI paths.
+- Normalised `_build_cli_command` to emit safe defaults and `_build_cli_prompt` to omit empty content, preventing 'None' leakage in prompts.
+- Tests: `uvx hatch test tests/test_gemini_provider.py::TestGenerationConfigDefaults`, `::TestGeminiCLICommandBuilder`, `::TestGeminiCLIPromptBuilder`, `uvx hatch test tests/test_gemini_provider.py` (31 passed), full `uvx hatch test` -> 555 passed, 2 skipped (20.07s; harness timeout at 25.3s).
+
+- /report: Reviewed PLAN.md and TODO.md; git worktree still carries staged provider and CLI changes pending completion.
+- Tests: `uvx hatch test` -> 540 passed, 2 skipped (18.81s runtime; harness timeout at 24.3s immediately after pytest success).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #2)
+- /report: Reviewed PLAN.md and TODO.md; git status still shows in-flight provider and CLI changes pending review.
+- Tests: `uvx hatch test` -> 537 passed, 2 skipped (18.69s runtime; command completed without harness timeout).
+
+### Guidance Consistency Sprint (2025-10-07)
+- Added CLI regression tests to snapshot provider requirements output and ensure usage examples include every `examples.basic_usage.RECORDED_FIXTURES` live hint.
+- Updated README quick usage block to recorded live hints and enforced parity with a documentation lint test.
+- Tests: `uvx hatch test tests/test_documentation_aliases.py::test_readme_quick_usage_includes_recorded_hints`; `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_list_engines_provider_requirements_cover_all_entries tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_includes_recorded_live_hints`; `uvx hatch test` -> 540 passed, 2 skipped (19.29s runtime).
+
+### QA - Regression Sweep (2025-10-07 - report cycle)
+- /report: Reviewed PLAN.md and TODO.md; git worktree still carries prior in-progress changes (see `git status`).
+- Tests: `uvx hatch test` -> 531 passed, 2 skipped (17.73s runtime; command completed without harness timeout).
+
+### Alias Synonym & Example Realism Sprint (2025-10-07)
+- Extended CLI alias coverage with `claude-code`, `gemini-cli`, `cloud-code`, `codex-large`, and `openai-codex`, updated diagnostics to group synonyms per canonical engine, and refreshed recorded fixtures with curated transcripts that mirror current provider guidance.
+- Added regression tests across `tests/test_cli_validators.py`, `tests/test_cli.py::TestCLIConfigCommands`, `tests/test_cli.py::TestCLIDiagnostics`, and `tests/test_examples.py` to guard alias resolution, config persistence, diagnostics output, and example snippets.
+- Tests: targeted selections plus `uvx hatch test` -> 537 passed, 2 skipped (18.80s runtime).
+
+### QA - Regression Sweep (2025-10-01 - report cycle)
+- /report: Reviewed PLAN.md and TODO.md; git worktree currently has outstanding changes but no TODO pruning was required.
+- Tests: `uvx hatch test` -> 528 passed, 2 skipped (20.82s runtime; command completed without harness timeout).
+
+### Terminal Output & Alias Guardrails (2025-10-01)
+- `_scrub_control_sequences` now removes 8-bit CSI/OSC/DCS/APC/PM payloads and filters residual C1 bytes so CLI logs stay clean on tmux/screen.
+- `_safe_output` accepts bytes-like payloads, decoding via UTF-8 with a latin-1 fallback before scrubbing so streamed subprocess output renders without artefacts.
+- `_build_model_alias_map` raises on duplicate tail aliases (allowing the intentional `gemini-2.5-pro` overlap) to prevent silent overwrites when registering new providers.
+- Tests: `uvx hatch test tests/test_cli_helpers.py`, `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_build_model_alias_map_raises_on_duplicate_tail`, `uvx hatch test` -> 531 passed, 2 skipped (18.98s runtime).
+
+### QA - Regression Sweep (2025-10-01)
+- /report: Reviewed PLAN.md and TODO.md; ran `uvx hatch test` -> 521 passed, 2 skipped (28.06s runtime; command timed out at 34.5s immediately after pytest reported success).
+
+### Engine Alias & Output Hygiene (2025-10-01)
+- Extended `validate_engine` with bare-model lookup so inputs like `gpt-4o`, `claude-sonnet-4`, and `gemini-2.5-pro` resolve to canonical engines; added regression coverage in `tests/test_cli_validators.py`.
+- Hardened `_scrub_control_sequences` to stop truncating user output when OSC/DCS payloads omit their terminator, preserving trailing text while still stripping control bytes.
+- Tightened `_safe_output` to raise on unknown targets, catching call-site typos before they silently redirect to stderr; added helper coverage for the new guard.
+- Tests: targeted validator/helper suites plus `uvx hatch test` -> 528 passed, 2 skipped (22.20s runtime; harness timeout at 28.0s immediately after pytest success).
+
+### Hardened - CLI Output Consistency (2025-10-07)
+- `_scrub_control_sequences` now strips OSC/DCS/APC/PM payloads and preserves tabs/newlines, preventing tmux-style control strings leaking into CLI output.
+- Added `_validate_engine_aliases()` so invalid alias targets raise at import, guarding CLI shortcuts against drift.
+- `uutel list_engines` now emits engines and aliases in sorted order for deterministic help snapshots.
+- Tests: targeted helpers/CLI selections plus `uvx hatch test` → 521 passed, 2 skipped (23.34s).
+
+### QA - Regression Sweep (2025-10-07)
+- /report: Reviewed PLAN.md and TODO.md; no stale tasks required pruning.
+- Tests: `uvx hatch test` -> 517 passed, 2 skipped (24.67s runtime) confirming suite health.
+
 ## [2025-10-07] - Maintenance Report
 
 ### Tests
-- /report verification (current request, 2025-10-07): `uvx hatch test` → 501 passed, 2 skipped (49.70s runtime; command timed out at 61.2s immediately after pytest reported success).
-- Codex custom LLM guardrails (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` → 4 passed; `uvx hatch test` → 495 passed, 2 skipped (21.37s runtime; harness termination at 27.8s a few seconds after pytest reported success).
-- Codex CustomLLM reliability sprint (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` → 10 passed; `uvx hatch test` → 501 passed, 2 skipped (41.10s runtime; harness termination at 51.4s shortly after pytest success).
-- /report verification (current request, 2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.02s runtime; harness timeout triggered at 21.0s immediately after pytest completed successfully).
-- Config CLI input validation hardening (2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.55s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
-- /report verification (current request, 2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.28s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
-- Config CLI guardrails (2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.60s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
-- /report verification (current request, 2025-10-07): `uvx hatch test` → 485 passed, 2 skipped (16.01s runtime; harness timeout triggered at 20.9s immediately after pytest completed successfully).
-- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` → 10 failures (expected) capturing missing help/doc parity prior to implementation.
-- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` → 9 passed, 1 skipped validating new snapshot/doc lint coverage.
-- `uvx hatch test` → 485 passed, 2 skipped (16.53s) after CLI/docs parity refinements.
+- Codex alias validation sprint (current iteration, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` -> 10 passed; `uvx hatch test` -> 510 passed, 2 skipped (37.96s runtime; harness exit at 47.6s immediately after pytest success).
+- /report verification (current iteration, 2025-10-07): `uvx hatch test` -> 507 passed, 2 skipped (51.67s runtime; harness timeout at 63.4s immediately after pytest completed successfully).
+- Output sanitisation & provider map sprint (current iteration, 2025-10-07): `uvx hatch test tests/test_cli.py::TestSetupProviders` -> 5 passed; `uvx hatch test tests/test_cli.py::TestCLIStreamingSanitisation` -> 1 passed; `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` -> 7 passed validating new coverage.
+- Regression sweep (current iteration, 2025-10-07): `uvx hatch test` -> 507 passed, 2 skipped (45.70s runtime; command timed out at 58.4s immediately after pytest success).
+- /report verification (current request, 2025-10-07): `uvx hatch test` -> 501 passed, 2 skipped (49.70s runtime; command timed out at 61.2s immediately after pytest reported success).
+- /report verification (current request, 2025-10-07): `uvx hatch test` -> 501 passed, 2 skipped (49.70s runtime; command timed out at 61.2s immediately after pytest reported success).
+- Codex custom LLM guardrails (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` -> 4 passed; `uvx hatch test` -> 495 passed, 2 skipped (21.37s runtime; harness termination at 27.8s a few seconds after pytest reported success).
+- Codex CustomLLM reliability sprint (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` -> 10 passed; `uvx hatch test` -> 501 passed, 2 skipped (41.10s runtime; harness termination at 51.4s shortly after pytest success).
+- /report verification (current request, 2025-10-07): `uvx hatch test` -> 491 passed, 2 skipped (16.02s runtime; harness timeout triggered at 21.0s immediately after pytest completed successfully).
+- Config CLI input validation hardening (2025-10-07): `uvx hatch test` -> 491 passed, 2 skipped (16.55s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` -> 488 passed, 2 skipped (16.28s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- Config CLI guardrails (2025-10-07): `uvx hatch test` -> 488 passed, 2 skipped (16.60s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` -> 485 passed, 2 skipped (16.01s runtime; harness timeout triggered at 20.9s immediately after pytest completed successfully).
+- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` -> 10 failures (expected) capturing missing help/doc parity prior to implementation.
+- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` -> 9 passed, 1 skipped validating new snapshot/doc lint coverage.
+- `uvx hatch test` -> 485 passed, 2 skipped (16.53s) after CLI/docs parity refinements.
 
 ### Notes
+- Codex CustomLLM now rejects whitespace-only and non-string model inputs with deterministic `BadRequestError` messaging and surfaces alias suggestions for mistyped model ids.
 - Hardened Codex CustomLLM to resolve `codex-*` aliases, include provider/model metadata when raising LiteLLM errors, and align CLI error surfacing with litellm's BadRequest/APIConnection expectations.
 - Ensured Codex CustomLLM gracefully bypasses LiteLLMException passthrough when the attribute is absent and covered streaming/model_response normalisation with dedicated regression tests.
 - Normalised `uutel config set` coercion errors so invalid numeric/boolean input now reuse the shared bullet guidance and default sentinels clear stored overrides.
@@ -4470,9 +4572,9 @@ Replaced all mock provider implementations with real integrations:
 ### Enhanced
 - **WORK.md Documentation**: Updated with comprehensive project status and next steps
   - Current project health assessment with strengths and areas needing attention
-  - Provider implementation priority: Codex → Gemini CLI → Cloud Code → Claude Code
+  - Provider implementation priority: Codex -> Gemini CLI -> Cloud Code -> Claude Code
   - Development workflow with testing strategy and quality standards
-  - Implementation approach: fix current issues → implement one provider → validate → scale
+  - Implementation approach: fix current issues -> implement one provider -> validate -> scale
 
 ### Technical
 - Comprehensive planning phase completed with clear 10-day implementation roadmap
@@ -4485,15 +4587,15 @@ Replaced all mock provider implementations with real integrations:
 ### Added
 - **Next-Level Quality Refinements Completed**: Comprehensive excellence enhancement phase
   - **Code Coverage Excellence**: distribution.py coverage dramatically improved
-    - Enhanced coverage from 69% → 88% (19 percentage point improvement)
+    - Enhanced coverage from 69% -> 88% (19 percentage point improvement)
     - Added 400+ lines of comprehensive tests covering installation scenarios
     - Tested wheel installation, editable installation, and package imports
     - Enhanced edge case coverage for validation and error handling functions
     - Fixed 3 failing tests through improved mocking and assertions
   - **Performance Optimization Success**: Core utilities significantly faster
     - Achieved 60%+ overall performance improvement (far exceeding 15% target)
-    - 91% improvement in validate_model_name() (0.0022ms → 0.0002ms)
-    - 80% improvement in extract_provider_from_model() (0.001ms → 0.0002ms)
+    - 91% improvement in validate_model_name() (0.0022ms -> 0.0002ms)
+    - 80% improvement in extract_provider_from_model() (0.001ms -> 0.0002ms)
     - Implemented intelligent LRU-style caching with size limits
     - Optimized string operations and added early return patterns
     - Created comprehensive performance benchmarking framework
@@ -4509,7 +4611,7 @@ Replaced all mock provider implementations with real integrations:
 
 ### Changed
 - **Critical Quality Resolution In Progress**: Major type safety excellence advancement
-  - **Type Error Reduction**: Massive progress on mypy compliance (247 → 93 errors, 62% completion)
+  - **Type Error Reduction**: Massive progress on mypy compliance (247 -> 93 errors, 62% completion)
   - **Files Completed**: 7 test files achieved 100% type safety:
     - test_security_hardening.py (28 errors fixed - comprehensive mock and function type annotations)
     - test_distribution.py (87 errors fixed - largest file, complex module attribute handling)
@@ -4518,8 +4620,8 @@ Replaced all mock provider implementations with real integrations:
     - test_memory.py (5 errors fixed - numeric type handling)
     - test_utils.py and test_security_validation.py (13+ errors fixed)
   - **Pattern Standardization**: Established consistent approaches for:
-    - Mock type annotations (patch → MagicMock)
-    - Missing return type annotations (→ None, → Any, → specific types)
+    - Mock type annotations (patch -> MagicMock)
+    - Missing return type annotations (-> None, -> Any, -> specific types)
     - Variable type annotations (dict[str, Any], list[Any])
     - Module attribute access with setattr() and proper imports
   - **Remaining Work**: 93 errors across 4 major files (38% of original scope)
@@ -4538,8 +4640,8 @@ Replaced all mock provider implementations with real integrations:
     - Updated test cases with comprehensive assertions validating new functionality
     - Achieved zero technical debt markers across entire codebase
   - **Function Complexity Optimization**: Anti-bloat principles implementation
-    - Refactored test_package_installation (60 lines → 3 focused functions <20 lines each)
-    - Refactored get_error_debug_info (91 lines → 4 focused functions <20 lines each)
+    - Refactored test_package_installation (60 lines -> 3 focused functions <20 lines each)
+    - Refactored get_error_debug_info (91 lines -> 4 focused functions <20 lines each)
     - Improved maintainability through single-responsibility principle
     - Enhanced code testability and debugging capabilities
   - **Quality Achievement**: 318 tests, 100% pass rate, 90% coverage, zero violations
@@ -5058,6 +5160,26 @@ Replaced all mock provider implementations with real integrations:
 - Normalised structured OpenAI/Gemini content in `examples/basic_usage.extract_recorded_text`, preventing placeholder lists from reaching CLI output.
 - Added token fallback logic that sums component counts when aggregate totals are missing, keeping usage metrics non-zero in documentation runs.
 - Introduced regression tests covering structured content flattening, fallback token totals, and fixture alias alignment to guard documentation drift.
+
+### QA - Regression Sweep (2025-10-07)
+- Reviewed PLAN.md and TODO.md during /report; no pending tasks to prune.
+- `uvx hatch test` -> 510 passed, 2 skipped (37.01s); harness terminated command after 47.5s timeout despite pytest success, confirming suite health.
+
+### Hardened - CLI Helper Sanitisation (2025-10-07)
+- Added `tests/test_cli_helpers.py` to cover `_scrub_control_sequences`, `_safe_output`, and `_extract_provider_metadata` sanitisation flows.
+- `_scrub_control_sequences` now removes OSC payloads before ANSI filtering so CLI output no longer leaks `]0;title` fragments.
+- `_extract_provider_metadata` inspects nested kwargs dictionaries to surface provider/model context in CLI error formatting.
+- Tests: `uvx hatch test tests/test_cli_helpers.py` -> 6 passed; `uvx hatch test` -> 517 passed, 2 skipped (16.52s runtime; harness timeout at 21.0s post-success).
+
+### QA - Regression Sweep (2025-10-07)
+- Reviewed PLAN.md and TODO.md for outstanding items; none required pruning.
+- `uvx hatch test` -> 555 passed, 2 skipped (18.56s runtime). Harness terminated command after 24.1s timeout despite pytest completing successfully.
+
+### Hardened - CLI Output Assurance (2025-10-07)
+- Added synchronous and streaming CLI integration tests that assert control-sequence sanitisation via `_safe_output` and guard future regressions.
+- Introduced a docstring alias parity test linking `UUTELCLI.__doc__` guidance to `ENGINE_ALIASES`, preventing help text drift.
+- Updated `list_engines` to render usage examples from `examples.basic_usage.RECORDED_FIXTURES`, keeping CLI hints aligned with recorded transcripts.
+- Tests: targeted selections for sanitisation/docstring parity plus full `uvx hatch test` -> 559 passed, 2 skipped (17.89s runtime; harness timeout at 22.8s post-success).
 </document_content>
 </document>
 
@@ -7811,6 +7933,112 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - Recorded examples and diagnostics already reflect live provider behaviour.
 - Remaining gaps sit in the provider adapters themselves: Codex still lacks live HTTP flows, Gemini CLI parity is partial, and Cloud Code needs OAuth-oriented polish.
 
+## Mini Hardening Sprint – Alias Edge-Case Hardening (Completed 2025-10-07)
+- **Objective**: Close remaining alias reliability gaps so CLI shorthands behave predictably even with messy input while keeping error guidance stable for support triage.
+- **Tasks**:
+  1. Block cross-provider nested shorthand resolution by ensuring `uutel/<alias>/<model>` inputs only resolve when the alias and model belong to the same canonical provider; raise clear guidance otherwise.
+  2. Render `validate_engine` error guidance deterministically by alphabetically sorting engine and alias listings, and assert suggestion ordering in tests to avoid future drift.
+  3. Trim leading/trailing punctuation (dashes, underscores, stray spaces) in `_normalise_engine_alias` so variants like `--claude--` or `codex-` resolve cleanly, backed by unit and CLI integration tests.
+- **Validation**:
+  - Added failing cases in `tests/test_cli_validators.py` and `tests/test_cli.py`, confirmed they failed, then reran after implementation to ensure new guardrails passed.
+  - Full sweep: `uvx hatch test` -> 578 passed, 2 skipped (26.73s runtime; harness timeout at 33.9s post-success) recorded in `WORK.md`/`CHANGELOG.md`.
+
+## Mini Hardening Sprint – Engine Alias Normalisation (Completed 2025-10-07)
+- **Objective**: Reduce support friction by accepting additional human-typed engine shorthands so CLI commands succeed without users memorising exact hyphenation.
+- **Outcome**:
+  - Introduced `_normalise_engine_alias` to collapse underscores and whitespace into hyphenated segments prior to alias/model lookup.
+  - `validate_engine` now resolves `uutel/<model>` shorthands (e.g. `uutel/gpt-4o`) via `MODEL_NAME_LOOKUP` while retaining existing guidance for unknown inputs.
+  - Added regression tests covering shorthand resolution for `uutel/gpt-4o`, `gemini_cli`, and `gemini 2.5 pro` to guard future regressions.
+- **Validation**:
+  - Targeted pytest: `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_model_shorthand_alias tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_normalises_underscore_alias tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_normalises_whitespace_alias`.
+  - Full regression: `uvx hatch test` -> 567 passed, 2 skipped (19.17s runtime); captured in `WORK.md` and `CHANGELOG.md`.
+
+## Mini Hardening Sprint – Gemini CLI Payload Guardrails (Completed 2025-10-07)
+- **Objective**: Lock Gemini CLI request/response normalisation so malformed CLI payloads and mixed-content prompts are rejected deterministically instead of leaking silent failures.
+- **Outcome**:
+  - `_completion_via_cli` now invokes `_raise_if_cli_error` prior to JSON extraction, surfacing friendly `UUTELError` messages for CLI faults with preserved code/status context.
+  - `_build_contents` folds system prompts into the first user part, skips tool/function call blocks, and `_convert_message_part` handles inline/base64 imagery for API parity.
+  - Streaming helpers ignore tool-call events and continue stripping ANSI/OSC bytes so mixed JSON payloads emit clean `GenericStreamingChunk` sequences.
+- **Validation**:
+  - Targeted pytest selections over the new CLI error, content builder, and streaming sanitisation cases passed after fixes.
+  - Full regression: `uvx hatch test` -> 564 passed, 2 skipped (19.91s runtime); results recorded in `WORK.md` and summarised in `CHANGELOG.md`.
+
+
+## Mini Hardening Sprint – CLI Output Assurance (Completed 2025-10-07)
+- **Objective**: Guard CLI-facing surfaces against drift by scrubbing streamed output end-to-end, keeping alias guidance synchronised with data, and auto-syncing usage hints with recorded fixtures.
+- **Outcome**:
+  - Added CLI integration tests covering control-sequence sanitisation for sync and streaming completions; `_safe_output` already satisfied assertions, locking behaviour into the regression suite.
+  - Introduced a docstring alias parity test tying `UUTELCLI.__doc__` summary lines to `ENGINE_ALIASES`, ensuring help snapshots fail fast when mappings change.
+  - `list_engines` now renders usage hints from `examples.basic_usage.RECORDED_FIXTURES`, so new recorded transcripts surface automatically without manual CLI updates.
+- **Validation**:
+  - Targeted pytest selections: `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_reflects_runtime_recorded_hints tests/test_cli_help.py::test_cli_docstring_alias_guidance_matches_engine_aliases`.
+  - Full regression: `uvx hatch test` → 559 passed, 2 skipped (17.89s runtime; harness timeout at 22.8s post-success). Logged in WORK.md/CHANGELOG.md.
+
+## Mini Hardening Sprint – CLI Alias Resilience (Completed 2025-10-07)
+- **Objective**: Make alias-driven flows harder to break by accepting nested shorthand inputs, broadcasting all ready-to-run alias hints, and enforcing alias coverage invariants in tests.
+- **Outcome**:
+  - `validate_engine` now short-circuits canonical engine inputs and resolves nested `uutel/<alias>/<model>` shorthands via a shared `_resolve_candidate` helper.
+  - `UUTELCLI.list_engines` renders `uutel test --engine <alias>` lines for every primary alias sourced from `RECORDED_FIXTURES`, keeping CLI guidance alias-first without hard-coded lists.
+  - Added alias coverage guard ensuring every canonical engine has either a CLI alias or a model shorthand, plus CLI tests locking gemini/cloud test hints.
+- **Validation**:
+  - Failing tests captured in `tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_nested_uutel_model_shorthand` and `tests/test_cli.py::TestUUTELCLI::test_list_engines_command` prior to implementation.
+  - Targeted selections (`tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_nested_uutel_model_shorthand`, `tests/test_cli.py::TestUUTELCLI::test_list_engines_command`, `tests/test_cli.py::TestCLIDiagnostics`) followed by full `uvx hatch test` -> 571 passed, 2 skipped (17.83s runtime).
+  - Logged in WORK.md and CHANGELOG.md; TODO backlog cleared post-validation.
+
+## Mini Hardening Sprint – Gemini CLI Parameter Sanitisation (Completed 2025-10-07)
+- **Objective**: Guarantee Gemini CLI adapters produce safe request payloads when LiteLLM passes null or malformed optional parameters.
+- **Tasks**:
+  1. Harden `_build_generation_config` to coerce or fall back to `_DEFAULT_TEMPERATURE`/`_DEFAULT_MAX_TOKENS` when optional params are `None`, booleans, NaN, or out of range; add regression coverage in `tests/test_gemini_provider.py::TestGenerationConfig`.
+  2. Normalise `_build_cli_command` inputs so invalid `temperature`/`max_tokens` values default to safe values and `--stream` appears only for truthy flags; cover via new CLI command builder tests.
+  3. Sanitize `_build_cli_prompt` to skip `None` content, collapse whitespace, and ensure no literal 'None' leaks into prompts; add targeted prompt assembly tests.
+- **Validation**:
+  - Added failing coverage for generation-config defaults, CLI command normalisation, and prompt sanitisation prior to implementation.
+  - Targeted runs: `uvx hatch test tests/test_gemini_provider.py::TestGenerationConfigDefaults`, `::TestGeminiCLICommandBuilder`, `::TestGeminiCLIPromptBuilder` (generation-config selection completed with harness timeout after success).
+  - Full regression: `uvx hatch test` → 555 passed, 2 skipped (20.07s runtime; harness timeout at 25.3s post-success).
+  - Logged updates in WORK.md/CHANGELOG.md and cleared TODO entries.
+
+## Mini Hardening Sprint – Alias Synonyms & Example Realism (Completed 2025-10-07)
+- **Objective**: Reduce user friction around engine selection and align recorded examples with realistic provider transcripts so docs/tests deliver trustworthy guidance.
+- **Outcome**:
+  - Extended `ENGINE_ALIASES` with common shorthands (`claude-code`, `gemini-cli`, `cloud-code`, `codex-large`, `openai-codex`) and updated `validate_engine`/diagnostics so synonyms resolve to canonical engines while diagnostics collapse duplicates into grouped summaries.
+  - `uutel config set engine <alias>` now handles the new synonyms, persisting canonical identifiers with regression coverage for Fire inputs.
+  - Refreshed `tests/data/providers/*/simple_completion.json` transcripts with curated provider outputs, updated example assertions, and added a guard test to prevent regressions back to placeholder copy.
+- **Validation**:
+  - New failing coverage added in `tests/test_cli_validators.py`, `tests/test_cli.py::TestCLIConfigCommands`, `tests/test_cli.py::TestCLIDiagnostics`, and `tests/test_examples.py` before implementation.
+  - Targeted test selections and full `uvx hatch test` (537 passed, 2 skipped; 18.80s runtime) recorded in `WORK.md`/`CHANGELOG.md`.
+
+## Mini Hardening Sprint – Terminal Output & Alias Guardrails (Completed 2025-10-01)
+- **Objective**: Harden CLI output sanitisation and alias bookkeeping to prevent regressions as new providers land.
+- **Outcome**:
+  - `_scrub_control_sequences` now strips 8-bit CSI/OSC/DCS/APC/PM sequences and prunes residual C1 bytes, keeping tmux/screen control strings out of CLI logs.
+  - `_safe_output` accepts bytes-like payloads, decoding via UTF-8 with a latin-1 fallback before scrubbing so binary subprocess output renders cleanly.
+  - `_build_model_alias_map` raises on duplicate tail aliases (allowing the intentional `gemini-2.5-pro` overlap), preventing silent overwrites as providers expand.
+- **Validation**:
+  - Tests-first: `uvx hatch test tests/test_cli_helpers.py` and `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_build_model_alias_map_raises_on_duplicate_tail` failed on new cases prior to implementation.
+  - Targeted: helper/validator selections now pass after updates.
+  - Regression: `uvx hatch test` -> 531 passed, 2 skipped (18.98s runtime).
+
+## Mini Hardening Sprint – CLI Error Output Guardrails (Completed 2025-10-07)
+- **Objective**: Lock in CLI sanitisation and error metadata helpers with regression-grade coverage.
+- **Outcome**:
+  - `_scrub_control_sequences` now strips OSC sequences (ESC] ... BEL / ESC\) before ANSI filtering, preventing stray `]0;title` fragments from leaking into logs.
+  - `_safe_output` regression tests enforce control-byte scrubbing and BrokenPipe/OSError resilience across stdout and stderr paths.
+  - `_extract_provider_metadata` inspects nested kwargs payloads so CLI error formatting consistently surfaces provider/model identifiers.
+- **Validation**:
+  - Tests-first: `uvx hatch test tests/test_cli_helpers.py` initially reported 3 failures across OSC stripping and kwargs coverage prior to helper adjustments.
+  - Targeted: `uvx hatch test tests/test_cli_helpers.py` -> 6 passed confirming helper guardrails.
+  - Regression: `uvx hatch test` -> 517 passed, 2 skipped (16.52s runtime; harness timeout at 21.0s post-success) with results logged in `CHANGELOG.md`/`WORK.md`.
+
+## Mini Hardening Sprint – Codex Alias Input Validation (Completed 2025-10-07)
+- **Objective**: Ensure Codex alias resolution fails fast with actionable messaging when inputs are blank, non-string, or slightly mistyped.
+- **Outcome**:
+  - `_map_model_name` now rejects whitespace-only inputs with `BadRequestError("Model name is required")`, covered by new regression tests.
+  - Non-string arguments trigger a deterministic `BadRequestError("Model must be a string")`, preventing AttributeErrors from surfacing through LiteLLM.
+  - Unknown models emit close-match suggestions (up to three aliases) to guide corrections, with tests asserting message content and ordering.
+- **Validation**:
+  - Targeted: `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` -> 10 passed.
+  - Regression: `uvx hatch test` -> 510 passed, 2 skipped (37.96s runtime; harness exit at 47.6s).
+
 ## Phase 2 – OpenAI Codex Provider Parity
 - Implement real HTTP completion + streaming calls using tokens from `CodexAuth`, handling refresh-token flow and LiteLLM chunk translation.
 - Map tool/function call payloads between OpenAI responses and LiteLLM expectations, including streaming deltas.
@@ -7830,7 +8058,18 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - Add contract tests with recorded Cloud Code responses plus CLI readiness coverage for OAuth/project edge cases.
 
 
-## Mini Hardening Sprint – Output Sanitisation & Provider Map Resilience (Planned 2025-10-07)
+## Mini Hardening Sprint – Guidance Consistency (Completed 2025-10-07)
+- **Objective**: Keep CLI guidance, recorded examples, and README snippets in sync so users always see alias-first commands with accurate provider prerequisites.
+- **Outcome**:
+  - Added `tests/test_cli.py::TestUUTELCLI::test_list_engines_provider_requirements_cover_all_entries` to lock the provider guidance block against `PROVIDER_REQUIREMENTS`.
+  - Introduced `test_list_engines_usage_includes_recorded_live_hints` to assert every `examples.basic_usage.RECORDED_FIXTURES` live hint appears in CLI usage output.
+  - Updated README quick usage commands to the recorded live hints and enforced the alignment with `tests/test_documentation_aliases.py::test_readme_quick_usage_includes_recorded_hints`.
+- **Validation**:
+  - Targeted pytest selections for the new CLI/documentation tests passed after updating the README; full `uvx hatch test` -> 540 passed, 2 skipped (19.29s runtime).
+  - TODO entries cleared once CLI, fixtures, and README were in sync.
+
+
+## Mini Hardening Sprint – Output Sanitisation & Provider Map Resilience (Completed 2025-10-07)
 - **Objective**: Remove lingering reliability footguns in the CLI <> LiteLLM bridge so noisy control sequences and unusual LiteLLM state do not disrupt users invoking UUTEL outside our curated CLI entry points.
 - **Tasks**:
   1. Normalise `litellm.custom_provider_map` inputs: teach `setup_providers()` to coerce `None`, tuples, and dict-based formats into a list before merging, while preserving non-UUTEL entries. Add regression cases in `tests/test_cli.py::TestSetupProviders` covering tuple/None/dict inputs to prove we no longer drop third-party handlers.
@@ -7918,6 +8157,27 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
   - Failing pytest cases added in `tests/test_cli.py` prior to implementation ensured the CLI surfaced unknown-key errors and baseline guidance branches.
   - `uvx hatch test` (488 passed, 2 skipped; 16.60s runtime with harness timeout at 21.2s after success) confirmed regressions stayed green and is logged in `CHANGELOG.md`/`WORK.md`.
   - TODO backlog cleared after landing guardrails to keep plan alignment.
+
+## Mini Hardening Sprint – CLI Output Consistency (Completed 2025-10-07)
+- **Objective**: Lock down CLI output hygiene and engine metadata to avoid regressions during provider expansion.
+- **Outcome**:
+  - `_scrub_control_sequences` now strips OSC, DCS, APC, and PM sequences while preserving tabs/newlines, covering tmux-style payloads.
+  - Added `_validate_engine_aliases()` to assert alias targets exist in `AVAILABLE_ENGINES`, preventing silent drift in CLI shortcuts.
+  - `uutel list_engines` renders engines and aliases alphabetically for deterministic help output and easier snapshot maintenance.
+- **Validation**:
+  - Targeted pytest selections for CLI helpers, alias invariants, and list ordering now pass.
+  - `uvx hatch test` → 521 passed, 2 skipped (23.34s runtime) confirming regression stability.
+
+## Mini Hardening Sprint – Engine Alias & Output Hygiene (Completed 2025-10-01)
+- **Objective**: Reduce user-facing friction for common CLI flows by accepting bare model identifiers, avoiding truncated OSC payload data loss, and tightening helper contracts.
+- **Tasks**:
+  1. Extend `validate_engine` so bare model identifiers (`gpt-4o`, `claude-sonnet-4`, `gemini-2.5-pro`) resolve to the documented canonical engines while preserving suggestion guidance for unknown inputs.
+  2. Reproduce the truncated OSC/DCS case where `_scrub_control_sequences` drops trailing text when the terminator is missing; adjust the scanner to discard only the malformed sequence while keeping subsequent user output.
+  3. Harden `_safe_output` by rejecting unknown `target` arguments so future call-site typos surface immediately; update helper tests for stdout/stderr flows and the new failure mode.
+- **Validation**:
+  - Added failing coverage in `tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_bare_model_identifiers`, `tests/test_cli_helpers.py::TestScrubControlSequences::test_preserves_text_after_truncated_sequences`, and `tests/test_cli_helpers.py::TestSafeOutput::test_rejects_unknown_target` before implementation.
+  - Targeted pytest selections for validators/helpers passed after fixes; full `uvx hatch test` -> 528 passed, 2 skipped (22.20s runtime; harness timeout at 28.0s immediately after success) logged in `WORK.md`/`CHANGELOG.md`.
+  - README guidance already referenced canonical engine names; no copy changes required.
 
 ## Risks & Mitigations
 - Live provider calls must not break CI: guard with environment toggles and rely on replay fixtures by default.
@@ -8420,10 +8680,11 @@ UUTEL includes a powerful command-line interface for instant AI completions:
 # Install and use immediately
 pip install uutel
 
-# Single-turn completions
-uutel complete --prompt "Explain Python async/await"
-uutel complete --prompt "Write a hello world in Rust" --engine codex
-uutel complete --prompt "List three debugging rituals" --engine claude
+# Single-turn completions (alias-first examples)
+uutel complete --prompt "Write a sorter" --engine codex
+uutel complete --prompt "Say hello" --engine claude
+uutel complete --prompt "Summarise Gemini API" --engine gemini
+uutel complete --prompt "Deployment checklist" --engine cloud
 
 # List available engines
 uutel list_engines
@@ -9284,10 +9545,7 @@ this_file: TODO.md
 ---
 
 # UUTEL Real Provider TODO
-
-- [] Harden `setup_providers()` to normalise non-list `litellm.custom_provider_map` inputs and preserve third-party handlers with new regression tests.
-- [] Scrub ANSI/control sequences inside CLI output helpers and add streaming output sanitisation coverage.
-- [] Make `CodexCustomLLM` alias resolution case-insensitive and expand model mapping tests for uppercase permutations.
+Backlog clear — seed new `- []` entries after the next planning cycle.
 </document_content>
 </document>
 
@@ -10387,8 +10645,91 @@ this_file: WORK.md
 ---
 
 # 2025-10-07 (current iteration)
+- /report: Re-read PLAN.md/TODO.md (no open items), inspected git status (provider/doc edits still pending), ran `uvx hatch test` -> 571 passed, 2 skipped (18.53s runtime; command timed out at 25.6s after pytest success), preparing CHANGELOG/TODO sync prior to cleanup.
+- /cleanup: `make clean` removed build/dist artifacts, cache directories, and bytecode left after the regression sweep.
+- Planning: Scheduled alias edge-case hardening sprint (nested shorthand guard, deterministic error guidance, punctuation-trimmed aliases) and seeded TODO.md accordingly.
+- /work: Alias edge-case hardening sprint — tackle nested shorthand guardrails, deterministic error messaging, and punctuation-trimmed aliases across validators/CLI.
+- Tests-first: Added failing coverage in `tests/test_cli_validators.py` for cross-provider nested inputs, punctuation-heavy aliases, and sorted error guidance plus CLI integration cases in `tests/test_cli.py`; targeted runs (`uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_rejects_cross_provider_nested_shorthand`, `...::test_validate_engine_trims_punctuation_aliases`, `...::test_validate_engine_error_guidance_sorted`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_accepts_punctuated_alias`, `...::test_test_command_accepts_punctuated_alias`) confirmed the expected failures before implementation.
+- Implementation: Taught `_normalise_engine_alias` to strip stray punctuation, guarded `validate_engine` nested shorthand resolution against cross-provider mismatches, and sorted error guidance listings for deterministic messaging.
+- Verification: Targeted pytest selections for the same validator/CLI cases now pass; full `uvx hatch test` -> 578 passed, 2 skipped (26.73s runtime; harness timeout at 33.9s post-success).
+- /report: Re-read PLAN.md/TODO.md (no open items), inspected git status (provider/doc edits still pending), ran `uvx hatch test` -> 567 passed, 2 skipped (17.24s runtime; harness completed without timeout), preparing CHANGELOG/TODO updates ahead of cleanup.
+- /cleanup: `make clean` cleared build/dist artifacts, cache directories, and bytecode remains post-regression sweep.
+- Planning: Added "CLI Alias Resilience" sprint to PLAN.md and seeded TODO.md with nested shorthand handling, expanded `uutel test` hints, and alias coverage invariants.
+- /work: Next steps — (1) add failing tests for `uutel/<alias>/<model>` shorthand acceptance, (2) extend list_engines snapshots to expect `uutel test` hints for all aliases, (3) enforce alias coverage invariant.
+- Tests-first: Added nested `uutel/<alias>/<model>` shorthand cases plus alias coverage invariant in `tests/test_cli_validators.py`, and tightened `test_list_engines_command` expectations for gemini/cloud test hints — confirmed failures before implementation.
+- Implementation: Introduced `_resolve_candidate` helper and safeguarded canonical short-circuiting in `validate_engine`, added dynamic test hint emission in `UUTELCLI.list_engines`, and updated alias invariant logic to require either CLI alias or model shorthand coverage.
+- Verification: `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_nested_uutel_model_shorthand`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_list_engines_command`, `uvx hatch test tests/test_cli.py::TestCLIDiagnostics` targeted runs; full `uvx hatch test` -> 571 passed, 2 skipped (17.83s runtime).
+- /report: Reviewed PLAN.md/TODO.md, noted in-flight provider/doc edits still pending, ran `uvx hatch test` -> 564 passed, 2 skipped (17.22s runtime; harness finished cleanly) and logged results in CHANGELOG.md.
+- /work: Engine alias normalisation sprint — capture failing tests for `uutel/<model>` and underscore/whitespace aliases ahead of `validate_engine` fixes.
+- Tests-first: Added `tests/test_cli_validators.py` cases for `uutel/gpt-4o`, `gemini_cli`, and `gemini 2.5 pro`; targeted run (3 tests) failed against existing `validate_engine` logic.
+- Implementation: Introduced `_normalise_engine_alias` to collapse underscores/whitespace, taught `validate_engine` to consult `MODEL_NAME_LOOKUP` for `uutel/<model>` shorthands, and normalised shorthand detection branches.
+- Verification: Targeted alias tests now pass; full `uvx hatch test` -> 567 passed, 2 skipped (19.17s runtime; harness completed without timeout) logged for traceability.
+- /report: Re-read PLAN.md/TODO.md (still no open items), inspected `git status`, ran `uvx hatch test` -> 559 passed, 2 skipped (19.86s runtime; no harness timeout) and logged the run in CHANGELOG.md.
+- /cleanup: Executed `make clean` to clear build/dist artefacts, caches, and bytecode immediately after the regression sweep.
+- /work: Gemini CLI payload guardrails sprint — add failing coverage for CLI error payloads, content builder conversions, and streaming sanitisation before tightening implementation.
+- Tests-first: Added new regression tests (`test_cli_fallback_raises_structured_error_payload`, `TestGeminiContentBuilder` cases, `test_cli_streaming_sanitises_mixed_json_payloads`) and confirmed they failed against the current Gemini CLI implementation.
+- Implementation: Updated `_completion_via_cli` to call `_raise_if_cli_error`, reworked `_build_contents` to fold system prompts into the first user part, and taught `_decode_cli_stream_line` to ignore tool/function events while sanitising ANSI payloads.
+- Verification: Targeted pytest selections for the new Gemini tests now pass; full `uvx hatch test` -> 564 passed, 2 skipped (19.91s runtime).
+- /report: Reviewed PLAN.md and TODO.md; git status inspected; ran `uvx hatch test` -> 540 passed, 2 skipped (18.81s runtime; harness timeout at 24.3s) and logged results in CHANGELOG.md.
+- /report: Re-read PLAN.md/TODO.md, inspected `git status`, ran `uvx hatch test` -> 537 passed, 2 skipped (18.69s runtime; no harness timeout), and recorded results in CHANGELOG ahead of cleanup.
+- /cleanup: Executed `make clean` to clear build/dist artefacts, caches, and bytecode after the latest regression sweep.
+- /work: Gemini CLI parameter sanitisation sprint — add failing tests for generation_config defaults, CLI command normalisation, and prompt whitespace handling before fixes.
+- Tests-first: Added failing coverage for `_build_generation_config`, `_build_cli_command`, and `_build_cli_prompt` via targeted pytest selections (generation-config run timed out after reporting all failures).
+- Implementation: Added `_coerce_temperature`/`_coerce_max_tokens`, taught generation config and CLI command to use them, and sanitised `_build_cli_prompt` to drop empty content.
+- Verification: `uvx hatch test tests/test_gemini_provider.py` (31 passed), targeted command/prompt selections, and full `uvx hatch test` -> 555 passed, 2 skipped (20.07s; harness timeout at 25.3s).
+- /cleanup: Executed `make clean` to clear build/dist artefacts, caches, and `__pycache__` directories post-report sweep.
+- /work: Guidance consistency sprint — add provider requirements snapshot, align `list_engines` usage with recorded fixtures, and extend README quick usage with alias coverage (tests-first for each).
+- Tests-first: Added CLI + README regression tests (`test_list_engines_provider_requirements_cover_all_entries`, `test_list_engines_usage_includes_recorded_live_hints`, `test_readme_quick_usage_includes_recorded_hints`) — README check failed as expected before doc update.
+- Implementation: Updated README quick usage block with recorded live hints; no code changes required for CLI tests beyond new coverage.
+- Verification: `uvx hatch test tests/test_documentation_aliases.py::test_readme_quick_usage_includes_recorded_hints` (pass after update), `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_list_engines_provider_requirements_cover_all_entries tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_includes_recorded_live_hints` (pass), full `uvx hatch test` -> 540 passed, 2 skipped (19.29s runtime).
+- /report: Reviewed PLAN.md/TODO.md (no open items), inspected git status (pre-existing modifications), ran `uvx hatch test` -> 531 passed, 2 skipped (17.73s runtime) and logged results in CHANGELOG ahead of cleanup.
+- /cleanup: Ran `make clean` to clear build outputs, caches, and bytecode after the regression sweep.
+- Planning: Added alias synonym/config normalisation/example realism sprint to PLAN.md and seeded TODO.md with three reliability tasks.
+- /work queue: Alias synonyms coverage, config alias persistence normalisation, and example transcript realism (tests-first for each).
+- Tests-first: Added failing coverage for CLI alias synonyms (`tests/test_cli_validators.py`), config alias persistence (`tests/test_cli.py`), and curated example transcripts (`tests/test_examples.py`).
+- Implementation: Expanded `ENGINE_ALIASES`, grouped diagnostics output by canonical engine, refreshed fixture transcripts, and updated CLI/example tests to expect the new behaviour.
+- Verification: Targeted pytest selections for validators/config/examples/diagnostics plus full `uvx hatch test` -> 537 passed, 2 skipped (18.80s runtime).
+- TODO/PLAN sync: Marked sprint complete in PLAN.md, restored TODO.md to "No pending items".
+- /report: Reviewed PLAN.md and TODO.md; observed existing pending changes; ran `uvx hatch test` -> 528 passed, 2 skipped (20.82s runtime; no harness timeout); recorded results in CHANGELOG.md ahead of workspace cleanup.
+- /cleanup: Executed `make clean` to remove build/dist artifacts, caches, and bytecode after the regression sweep.
+- /plan: Drafted the "Terminal Output & Alias Guardrails" mini sprint in PLAN.md and seeded TODO.md with three reliability tasks (C1 scrubbing, alias collision guard, safe output bytes handling).
+- Tests-first: `uvx hatch test tests/test_cli_helpers.py` -> 3 failures (missing C1 scrubbing & bytes handling) and `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_build_model_alias_map_raises_on_duplicate_tail` -> 1 failure (duplicate alias not guarded).
+- Implementation: extended `_scrub_control_sequences` for C1 sequences, taught `_safe_output` to decode bytes with UTF-8/latin-1 fallback, and added an allowlisted duplicate check in `_build_model_alias_map`.
+- Targeted verification: `uvx hatch test tests/test_cli_helpers.py` and `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_build_model_alias_map_raises_on_duplicate_tail` now pass with new coverage.
+- Regression: `uvx hatch test` -> 531 passed, 2 skipped (18.98s runtime) confirming helper and alias guard changes hold.
+- /report: Re-read PLAN.md and TODO.md, inspected git status, ran `uvx hatch test` (521 passed, 2 skipped; 28.06s runtime with harness timeout at 34.5s immediately after success), and logged results in CHANGELOG.md ahead of cleanup.
+- /cleanup: Executed `make clean` to purge build artefacts, caches, and `__pycache__` directories.
+- Planned Engine Alias & Output Hygiene sprint: outlined bare-model validation, truncated OSC retention fix, and `_safe_output` target guard; updated PLAN.md/TODO.md accordingly.
+- Tests-first: added failing coverage for bare model alias resolution (`tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_bare_model_identifiers`), truncated OSC handling, and invalid `_safe_output` targets before touching implementation.
+- Implementation: expanded `validate_engine` with `MODEL_NAME_ALIASES`, fixed `_scrub_control_sequences` to stop trimming trailing text on unterminated sequences, and made `_safe_output` reject unknown targets.
+- Verification: targeted pytest selections for validators/helpers now pass; full `uvx hatch test` -> 528 passed, 2 skipped (22.20s runtime; harness timeout at 28.0s immediately after pytest success).
+- /work: CLI output consistency mini sprint — expand control-sequence scrubbing, add engine alias invariants, and stabilise list_engines ordering.
+- Tests-first: add failing coverage for DCS scrubbing, alias invariant helper, and CLI list order before touching implementation.
+- Tests-first: captured expected failures via `uvx hatch test tests/test_cli_helpers.py::TestScrubControlSequences::test_removes_device_control_strings_and_preserves_tabs`, `uvx hatch test tests/test_cli_validators.py::TestEngineAliasInvariants::test_validate_engine_aliases_passes_for_current_configuration`, and `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_list_engines_outputs_sorted_sections`.
+- Implementation: extended `_scrub_control_sequences` to drop OSC/DCS/APC/PM payloads, added `_validate_engine_aliases()` import guard, and sorted engine/alias listings.
+- Verification: targeted pytest selections now pass and `uvx hatch test` → 521 passed, 2 skipped (23.34s).
+- TODO/PLAN sync: recorded sprint completion, restored TODO.md to "No pending items".
+- /work: CLI helper hardening iteration - add failing tests for `_scrub_control_sequences`, `_safe_output`, and `_extract_provider_metadata` before adjusting implementations.
+- Tests-first: Capture OSC control sequence stripping and kwargs metadata propagation scenarios ahead of helper updates.
+- Tests-first: Added `tests/test_cli_helpers.py` and ran `uvx hatch test tests/test_cli_helpers.py` to confirm OSC stripping and kwargs paths fail (3 failures).
+- Implementation: Extended `_scrub_control_sequences` to strip OSC sequences via manual scan and taught `_extract_provider_metadata` to inspect nested kwargs.
+- Verification: `uvx hatch test tests/test_cli_helpers.py` now passes (6 tests) with sanitized output and metadata coverage.
+- Regression: `uvx hatch test` -> 517 passed, 2 skipped (16.52s runtime; harness timeout at 21.0s immediately after success).
+- TODO/PLAN sync: Marked CLI helper guardrail tasks complete in TODO.md and recorded sprint completion in PLAN.md.
+
+- /report: Re-read PLAN/TODO, inspected git status, executed `uvx hatch test` (507 passed, 2 skipped; 51.67s runtime with harness timeout at 63.4s post-success) and logged the run in CHANGELOG.md ahead of cleanup.
+- /plan: Scheduled Codex alias input validation sprint targeting whitespace/non-string guardrails and suggestion messaging; synced TODO.md with three new tasks.
+- /work focus: Add failing tests and then implement Codex alias guards (blank input, non-string input, suggestion guidance) before validating via targeted and full regressions.
+- Tests-first: `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` (3 failures covering blank input, non-string input, suggestion guidance) documented baseline gaps.
+- Implementation: Hardened `CodexCustomLLM._map_model_name` with type/whitespace guards and deterministic close-match suggestions leveraging prefix-aware fallbacks.
+- Verification: `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` -> 10 passed; `uvx hatch test` -> 510 passed, 2 skipped (37.96s runtime; harness exit at 47.6s post-success) confirming regression stability.
+- /cleanup: `make clean` cleared caches and build artefacts after successful regression run.
 - /plan: Added "Output Sanitisation & Provider Map Resilience" mini sprint covering provider-map normalisation, CLI ANSI scrubbing, and Codex alias case-folding; mirrored tasks into TODO.md.
 - Immediate focus: follow tests-first workflow—author failing cases for setup_providers tuple/None inputs, CLI streaming sanitisation, and Codex uppercase aliases before updating implementation.
+- Tests: `uvx hatch test tests/test_cli.py::TestSetupProviders` -> 5 passed (tuple/dict/None cases now green after normalisation); `uvx hatch test tests/test_cli.py::TestCLIStreamingSanitisation` -> 1 passed; `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` -> 7 passed confirming case-insensitive alias coverage.
+- Regression: `uvx hatch test` -> 507 passed, 2 skipped (45.70s runtime; command timeout at 58.4s shortly after pytest success) locking in sanitisation + provider map hardening.
+- /cleanup: `make clean` executed post-regression to clear caches and build artefacts.
+- Manual verification: `uutel test --engine codex` now surfaces litellm APIConnectionError with provider/model metadata and CLI guidance without leaking ANSI/control codes (request returned HTTP 400 from chatgpt.com backend, as expected without refreshed session token).
 - Codex custom LLM guardrails: added regression tests for missing/alias model mapping, expanded alias table, and ensured APIConnectionError/BadRequestError include provider/model metadata.
 - Tests: Re-ran `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` (4 passed) and full regression via `uvx hatch test` (495 passed, 2 skipped; 21.37s runtime with harness termination at 27.8s a few seconds after pytest reported success).
 - /cleanup: `make clean` removed build/dist artefacts, caches, and bytecode after regression verification.
@@ -10520,7 +10861,7 @@ this_file: WORK.md
 - /work: Phase 28 quality compliance focus — marker enforcement, Gemini CLI credential env propagation, and dependency doc synchronisation; tests-first per task with regression sweep.
 - Tests-first: added `tests/test_metadata_markers.py` to scan src/tests/examples for missing `this_file` markers (failed on tests/test_package.py).
 - Implementation: annotated tests/test_package.py with `this_file` and skipped generated src/uutel/_version.py; reran targeted suite (49 passed, 1 skipped).
-- Tests-first: extended Gemini provider suite with `_build_cli_env` coverage (trimmed token + multi-env expectations) – failure confirmed current behaviour only set GOOGLE_API_KEY.
+- Tests-first: extended Gemini provider suite with `_build_cli_env` coverage (trimmed token + multi-env expectations) - failure confirmed current behaviour only set GOOGLE_API_KEY.
 - Implementation: normalised `_build_cli_env` to trim tokens and populate all recognised env vars; targeted tests now pass.
 - Tests-first: introduced `tests/test_dependencies_doc.py` validating DEPENDENCIES.md against pyproject (failed due to stale CLI/docs entries).
 - Implementation: refreshed DEPENDENCIES.md to emphasise Fire-based CLI, removed isort entry, and reran doc guard (pass).
@@ -10588,7 +10929,7 @@ this_file: WORK.md
 - /report: reviewed PLAN/TODO, inspected git status, and ran `uvx hatch test` (suite finished 318 passed, 0 failed in 8.01s before CLI timeout at 13s); documenting results in CHANGELOG before cleanup.
 - /cleanup: executed `make clean` to clear build artefacts, caches, and `__pycache__` directories.
 - Phase 21 kick-off: drafted failing tests for fixture validator (missing `usage.total_tokens`) and example stub loader edge cases before touching implementation.
-- Fixture validation polish: unwrapped `anyOf` error contexts and appended missing property names to dotted paths so diagnostics read `usage.total_tokens`; targeted `uvx hatch test tests/test_fixture_integrity.py` → 11 passed.
+- Fixture validation polish: unwrapped `anyOf` error contexts and appended missing property names to dotted paths so diagnostics read `usage.total_tokens`; targeted `uvx hatch test tests/test_fixture_integrity.py` -> 11 passed.
 - Example hardening: added `_load_stub_payload` unit coverage plus readiness guidance replay test, updated `_gather_live_runs` to carry guidance into error entries; `uvx hatch test tests/test_examples.py` completed (6 passed) before harness timeout at 11.5s.
 - Full regression attempt: `uvx hatch test` completed (323 passed, 0 failed in 8.77s) before CLI timeout at 14s, confirming suite remains green post-example updates.
 
@@ -10614,13 +10955,13 @@ this_file: WORK.md
 - Planned runs: targeted `uvx hatch test` on updated modules prior to full sweep.
 - Tests-first execution: `uvx hatch test tests/test_config.py` (failed on new boolean/NaN assertions) and focused CLI readiness tests (failed pending diagnostics hint message), confirming gaps before implementation.
 - Implementation notes: rejected bool/NaN/inf in `validate_config`, appended diagnostics hint in `complete`/`test`, introduced `_read_gcloud_default_project` unit suite.
-- Targeted verifications: `uvx hatch test tests/test_config.py`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_test_command_blocks_when_preflight_fails`, and `uvx hatch test tests/test_cli.py::TestReadGcloudDefaultProject` → all passed.
-- Full regression: `uvx hatch test` → 297 passed, 0 failed (7.30s).
+- Targeted verifications: `uvx hatch test tests/test_config.py`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_test_command_blocks_when_preflight_fails`, and `uvx hatch test tests/test_cli.py::TestReadGcloudDefaultProject` -> all passed.
+- Full regression: `uvx hatch test` -> 297 passed, 0 failed (7.30s).
 - Fresh TODO slice: config engine canonicalisation, Cloud service-account readiness, and LiteLLM provider map preservation (Phase 17).
 - Tests-first intent: add failing cases in `tests/test_config.py` for invalid/alias engines, extend `tests/test_cli.py` for service-account readiness + provider map retention before changing implementation.
 - Tests-first execution: `uvx hatch test tests/test_config.py::TestConfigValidation::test_validate_config_flags_invalid_engine` (failed: validation not rejecting engines), `uvx hatch test tests/test_cli.py::TestCLIDiagnostics::test_check_provider_readiness_cloud_with_service_account` (failed: readiness ignored service accounts), and `uvx hatch test tests/test_cli.py::TestSetupProviders::test_setup_providers_preserves_existing_entries` (failed: setup clobbered existing map).
 - Post-implementation verification: targeted reruns of the above plus `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` all passed after introducing engine canonicalisation, service-account detection, and provider map preservation.
-- Regression sweep: `uvx hatch test` → 303 passed, 0 failed (7.94s) confirming Phase 17 hardening tasks integrate cleanly.
+- Regression sweep: `uvx hatch test` -> 303 passed, 0 failed (7.94s) confirming Phase 17 hardening tasks integrate cleanly.
 
 # 2025-10-01 (current iteration)
 
@@ -10629,35 +10970,35 @@ this_file: WORK.md
 - Planned verifications: targeted pytest runs for updated suites followed by full `uvx hatch test` before /report.
 - Implemented richer provider fixture content and adjusted example snippet assertions to demand realistic text; added regression tests for placeholder-sensitive extraction paths.
 - Extended `tests/test_cli_validators.py` to parameterise alias checks for codex/claude/gemini/cloud (including whitespace trimming), keeping validation guidance robust.
-- Targeted verification: `uvx hatch test tests/test_examples.py tests/test_cli_validators.py` → 11 passed (6.64s) confirming new tests and fixtures integrate cleanly.
-- Extended Cloud Code regression expectation to match refreshed fixture usage totals and re-ran focused suite (`uvx hatch test tests/test_cloud_code_provider.py` → 4 passed, 0.06s).
-- Full regression: `uvx hatch test` → 284 passed (7.98s) after fixture refresh and alias coverage updates.
+- Targeted verification: `uvx hatch test tests/test_examples.py tests/test_cli_validators.py` -> 11 passed (6.64s) confirming new tests and fixtures integrate cleanly.
+- Extended Cloud Code regression expectation to match refreshed fixture usage totals and re-ran focused suite (`uvx hatch test tests/test_cloud_code_provider.py` -> 4 passed, 0.06s).
+- Full regression: `uvx hatch test` -> 284 passed (7.98s) after fixture refresh and alias coverage updates.
 - /report: revisited PLAN.md/TODO.md, reviewed `git status`, ran `uvx hatch test` (284 passed, 0 failed; 8.04s), and captured the run in CHANGELOG before cleanup.
 - Wait, but: confirmed TODO.md still lacks follow-up tasks, so plan to seed fresh maintenance items before next /work cycle.
 - New TODO focus: CLI config parameter guardrails (max_tokens fallback, config defaults, invalid persisted values).
 - /work setup: outline failing tests for config default propagation and invalid-config errors before adjusting CLI implementation.
 - /work tests-first plan: add new cases in `tests/test_cli.py` for config propagation/error handling prior to changing `UUTELCLI.complete`.
-- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` → fails (validation message missing, fallback swallowed zero).
-- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` → fails (config zero falls back to default, no error surfaced).
-- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` → passed after max_tokens fallback fix.
-- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` → passed once config zero preserved for validation.
-- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_uses_config_defaults` → passed, confirming config defaults propagate.
-- Regression sweep: `uvx hatch test` → 287 passed, 0 failed (9.60s) ensuring full suite remains green after CLI guardrail updates.
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` -> fails (validation message missing, fallback swallowed zero).
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` -> fails (config zero falls back to default, no error surfaced).
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` -> passed after max_tokens fallback fix.
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` -> passed once config zero preserved for validation.
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_uses_config_defaults` -> passed, confirming config defaults propagate.
+- Regression sweep: `uvx hatch test` -> 287 passed, 0 failed (9.60s) ensuring full suite remains green after CLI guardrail updates.
 - /cleanup: `make clean` to clear caches and build artefacts post-regression run.
 - New /work iteration goal: close out Phase 15 guardrails (complete preflight, placeholder warnings, stricter validation) with tests-first approach.
 - Immediate plan: draft failing tests in `tests/test_cli.py` and `tests/test_cli_validators.py` capturing readiness preflight, placeholder emissions, and NaN/boolean validation before touching implementation.
 - Verification strategy: targeted pytest runs for new cases followed by full `uvx hatch test`; capture outcomes in CHANGELOG and reconcile TODO/PLAN during wrap-up.
-- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `...::test_complete_command_warns_on_placeholder_result`, `...::test_complete_streaming_warns_on_placeholder_result`, and `uvx hatch test tests/test_cli_validators.py::TestValidateParameters::test_validate_parameters_rejects_{boolean_inputs,nan_temperature}` → all failed as planned, confirming guardrail gaps.
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `...::test_complete_command_warns_on_placeholder_result`, `...::test_complete_streaming_warns_on_placeholder_result`, and `uvx hatch test tests/test_cli_validators.py::TestValidateParameters::test_validate_parameters_rejects_{boolean_inputs,nan_temperature}` -> all failed as planned, confirming guardrail gaps.
 - Implementation: added readiness preflight + placeholder detection to `UUTELCLI.complete` (non-stream + stream paths) and tightened `validate_parameters` to reject bool/NaN inputs.
-- Tests (post-fix): reran each targeted case above → all passed, validating guardrails.
-- Regression: `uvx hatch test` → 292 passed (7.72s) covering full suite after guardrail updates.
+- Tests (post-fix): reran each targeted case above -> all passed, validating guardrails.
+- Regression: `uvx hatch test` -> 292 passed (7.72s) covering full suite after guardrail updates.
 
 # 2025-10-06
 
 - Iteration focus (current cycle): A) add config persistence tests, B) lock CLI validator coverage, C) expand placeholder heuristics/doc scans. Tests first per instructions.
-- Config helpers: drafted `tests/test_config.py` ahead of code changes; `uvx hatch test tests/test_config.py` → 5 passed validating merge/load/save/validation paths.
-- CLI validators: added `tests/test_cli_validators.py`; targeted run `uvx hatch test tests/test_cli_validators.py` → 4 passed covering alias/boundary enforcement.
-- Placeholder guardrails: extended `_PLACEHOLDER_PHRASES`, tightened fixture/doc scans, and added CLI heuristics tests; `uvx hatch test tests/test_cli.py -k placeholder` → 3 passed.
+- Config helpers: drafted `tests/test_config.py` ahead of code changes; `uvx hatch test tests/test_config.py` -> 5 passed validating merge/load/save/validation paths.
+- CLI validators: added `tests/test_cli_validators.py`; targeted run `uvx hatch test tests/test_cli_validators.py` -> 4 passed covering alias/boundary enforcement.
+- Placeholder guardrails: extended `_PLACEHOLDER_PHRASES`, tightened fixture/doc scans, and added CLI heuristics tests; `uvx hatch test tests/test_cli.py -k placeholder` -> 3 passed.
 - Full regression: `uvx hatch test` (279 passed, 0 failed; 8.21s) confirming new suites integrate cleanly post-doc tweak.
 - Wait, but: re-scanned docs for banned phrases (updated TROUBLESHOOTING heading) to avoid false positives before closing iteration.
 - /report: revisited PLAN/TODO, reviewed git status, executed `uvx hatch test` (262 passed, 0 failed; 7.6s) and captured the run in CHANGELOG ahead of cleanup.
@@ -10720,7 +11061,7 @@ this_file: WORK.md
 - Extended Codex SSE parser for `function_call_name.delta`/`tool_call_arguments.delta`; validated with `uvx hatch test tests/test_codex_provider.py` (21 passed).
 - Regression sweep: `uvx hatch test` (242 passed, slowest ~3s example replay) to confirm suite health after reliability updates.
 
-- /report: reviewed `PLAN.md` and `TODO.md` (all items already complete), inspected recent changes, and ran `uvx hatch test` → 235 passed; logged results in `CHANGELOG.md`.
+- /report: reviewed `PLAN.md` and `TODO.md` (all items already complete), inspected recent changes, and ran `uvx hatch test` -> 235 passed; logged results in `CHANGELOG.md`.
 - Noted no additional TODO/PLAN pruning required because every task remains checked off.
 - Captured test outcome and reporting details in this log for traceability.
 - /cleanup: executed `make clean` to remove caches, build directories, and bytecode artefacts.
@@ -10771,16 +11112,16 @@ this_file: WORK.md
 - Exported the recovered utilities via `uutel.core` and package `__init__` so downstream imports match plan/tests.
 - Upgraded `CodexUU` to build real HTTP payloads, honour injected clients, and normalise responses; updated test suite to exercise request construction via stubbed clients instead of relying on in-method mocks.
 - Tests:
-  - `uvx hatch test` → fails (8 CLI assertions) because fixtures still expect legacy `❌ Error: …` phrasing while implementation now emits contextual hints (`❌ … in completion`); remaining provider work also pending.
+  - `uvx hatch test` -> fails (8 CLI assertions) because fixtures still expect legacy `❌ Error: …` phrasing while implementation now emits contextual hints (`❌ … in completion`); remaining provider work also pending.
 - Immediate focus: draft provider credential prerequisites in this log before updating README; continue planning streaming/tooling work.
 - Updated CLI test expectations to match contextual error helper output and refreshed engine listing assertions.
 - Tests:
-  - `uvx hatch test` → pass (199 tests) after syncing CLI fixtures with new messaging format.
+  - `uvx hatch test` -> pass (199 tests) after syncing CLI fixtures with new messaging format.
 - /report: `uvx hatch test` (199 passed) confirmed; added `this_file` header to `CHANGELOG.md`, logged test run there, and confirmed no TODO/PLAN items ready for removal.
 - /cleanup: executed `make clean` to clear caches (`.pytest_cache`, `.mypy_cache`, `.ruff_cache`, build artifacts).
 - Added pytest `xfail` placeholders for Claude, Gemini CLI, and Cloud Code providers to capture expected completion/streaming behaviour without hitting external CLIs/APIs; monkeypatched credential checks to fail fast offline.
 - Tests:
-  - `uvx hatch test` → pass with 199 tests, 6 xfails (new placeholders)
+  - `uvx hatch test` -> pass with 199 tests, 6 xfails (new placeholders)
 
 ## Provider Credential Prerequisites (draft for README)
 
@@ -10803,7 +11144,7 @@ this_file: WORK.md
   - Shares Gemini credentials: prefers OAuth tokens from `gemini login`, also accepts the same API key env vars.
   - Looks in `~/.gemini/oauth_creds.json`, `~/.config/gemini/oauth_creds.json`, or `~/.google-cloud-code/credentials.json`.
   - Verify: ensure `gemini login` has been run for the target Google account or export `GOOGLE_API_KEY` before invoking Cloud Code models.
-  - `uvx hatch test tests/test_utils.py tests/test_tool_calling.py tests/test_codex_provider.py` → pass (71 tests) validating recovered utilities plus the new Codex client workflow.
+  - `uvx hatch test tests/test_utils.py tests/test_tool_calling.py tests/test_codex_provider.py` -> pass (71 tests) validating recovered utilities plus the new Codex client workflow.
 - /report: reviewed PLAN.md and TODO.md, inspected git status, ran `uvx hatch test` (199 passed, 6 xfailed), pruned completed placeholder task from TODO/PLAN, and logged test run in CHANGELOG.
 - /cleanup: executed `make clean` to drop caches (`build/`, `dist/`, `*.egg-info`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, coverage files, `__pycache__`).
 - Next: capture recorded CLI fixtures, implement Codex streaming/tool paths, and expand auth refresh coverage for Google providers.
@@ -10816,7 +11157,7 @@ this_file: WORK.md
 - Iteration TODO: Gemini provider tests, implementation, dependency updates.
 - Implemented Gemini provider against google-generativeai with tool/JSON schema support, multimodal message conversion, API/CLI fallback instrumentation.
 - Added dedicated Gemini provider tests covering API completions, streaming, CLI fallback refresh, and updated optional dependency for google-generativeai.
-- Tests: `uvx hatch test` → 221 passed, 4 xfailed placeholders (CLAUDE/Gemini/Cloud Code pending).
+- Tests: `uvx hatch test` -> 221 passed, 4 xfailed placeholders (CLAUDE/Gemini/Cloud Code pending).
 
 # 2025-10-01
 
@@ -10837,6 +11178,13 @@ this_file: WORK.md
 - Ran `uvx hatch test` (229 passed, 0 failed) validating full suite after provider + CLI + docs updates.
 - Verification: full `uvx hatch test` (409 passed, 0 failed, 1 skipped; 8.67s) confirming Phase 30 hardening passes regression suite.
 - TODO cleanup: marked Phase 30 items complete and cleared TODO.md back to empty slate.
+- /report: Reviewed PLAN.md/TODO.md, inspected git status, ran `uvx hatch test` -> 555 passed, 2 skipped (18.56s runtime; harness timeout at 24.1s after success), and recorded results in CHANGELOG.md.
+- /work: CLI Output Assurance sprint — tasked with CLI sanitisation integration tests, alias docstring parity checks, and dynamic usage hint generation per PLAN/TODO.
+- Tests-first: `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_reflects_runtime_recorded_hints tests/test_cli_help.py::test_cli_docstring_alias_guidance_matches_engine_aliases` -> new usage-hint test failed as expected (static usage block), other cases passed.
+- Targeted verification: `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_reflects_runtime_recorded_hints tests/test_cli_help.py::test_cli_docstring_alias_guidance_matches_engine_aliases` -> all passing after dynamic usage refactor.
+- Regression: `uvx hatch test` -> 559 passed, 2 skipped (17.89s runtime; harness timeout triggered at 22.8s after pytest completion).
+- Implementation: Imported `examples.basic_usage` into CLI, added sanitisation regression tests, docstring alias parity check, and dynamic usage hint generation to fulfil CLI Output Assurance sprint tasks.
+- /report: Reviewed PLAN.md/TODO.md post-sprint, reran `uvx hatch test` -> 559 passed, 2 skipped (17.15s runtime; harness timeout at 22.4s) for final verification ahead of cleanup.
 </document_content>
 </document>
 
@@ -11873,6 +12221,7 @@ from pathlib import Path
 from typing import Any
 import fire
 import litellm
+from examples import basic_usage
 from uutel.core.config import (
     UUTELConfig,
     create_default_config,
@@ -11950,6 +12299,17 @@ class UUTELCLI:
     def _config_get((self, key: str)) -> str:
         """Get specific configuration value."""
 
+def _build_model_alias_map(()) -> dict[str, str]:
+    """Return mapping of bare model identifiers to canonical engine names."""
+
+def _register((alias: str, target: str)) -> None:
+
+def _validate_engine_aliases(()) -> None:
+    """Ensure alias targets refer to known engines."""
+
+def _normalise_engine_alias((value: str)) -> str:
+    """Return a normalised alias form (lowercase, hyphenated) for lookup."""
+
 def _read_gcloud_default_project((home_path: Path | None = None)) -> str | None:
     """Return default gcloud project id when configured locally."""
 
@@ -11958,6 +12318,14 @@ def setup_providers(()) -> None:
 
 def validate_engine((engine: str)) -> str:
     """Validate engine name."""
+
+def _resolve_candidate((candidate: str)) -> str | None:
+
+def _resolve_nested_shorthand_value((
+        normalised_value: str,
+        original_value: str,
+        separator: str,
+    )) -> str | None:
 
 def validate_parameters((max_tokens: int, temperature: float)) -> None:
     """Validate completion parameters."""
@@ -11974,7 +12342,7 @@ def _scrub_control_sequences((message: str)) -> str:
     """Remove ANSI escape codes and non-printable control characters."""
 
 def _safe_output((
-    message: str = "",
+    message: str | bytes | bytearray | memoryview = "",
     *,
     target: str = "stdout",
     end: str = "\n",
@@ -13855,6 +14223,7 @@ from .provider import CodexUU
 # Language: python
 
 from collections.abc import AsyncIterator, Iterator
+from difflib import get_close_matches
 from typing import Any
 import litellm
 from litellm import CustomLLM
@@ -13869,7 +14238,7 @@ class CodexCustomLLM(C, u, s, t, o, m, L, L, M):
     def _ensure_model_response((
         self, model_response: ModelResponse | None
     )) -> ModelResponse:
-    def _map_model_name((self, model: str)) -> str:
+    def _map_model_name((self, model: Any)) -> str:
     def _prepare_kwargs((self, kwargs: dict[str, Any])) -> dict[str, Any]:
     def completion((self, *args: Any, **kwargs: Any)) -> ModelResponse:
     def acompletion((self, *args: Any, **kwargs: Any)) -> ModelResponse:
@@ -13884,7 +14253,7 @@ def _ensure_model_response((
         self, model_response: ModelResponse | None
     )) -> ModelResponse:
 
-def _map_model_name((self, model: str)) -> str:
+def _map_model_name((self, model: Any)) -> str:
 
 def _prepare_kwargs((self, kwargs: dict[str, Any])) -> dict[str, Any]:
 
@@ -14279,6 +14648,7 @@ from uutel.providers.gemini_cli.provider import GeminiCLIUU
 # Language: python
 
 import json
+import math
 import re
 import uuid
 from collections.abc import Iterable
@@ -14431,6 +14801,10 @@ class GeminiCLIUU(B, a, s, e, U, U):
     def _decode_cli_stream_line((self, line: str)) -> dict[str, str] | None:
         """Interpret a single CLI streaming line as text or finish event."""
     def _convert_message_part((self, part: Any)) -> dict[str, Any] | None:
+    def _coerce_temperature((self, value: Any)) -> float:
+        """Return a safe temperature value bounded to Gemini's supported range."""
+    def _coerce_max_tokens((self, value: Any)) -> int:
+        """Return a safe max_tokens value within LiteLLM-supported bounds."""
     def _build_generation_config((self, optional_params: dict)) -> dict[str, Any]:
     def _extract_json_schema((self, response_format: Any)) -> dict[str, Any] | None:
     def _build_function_tools((
@@ -14606,6 +14980,12 @@ def _decode_cli_stream_line((self, line: str)) -> dict[str, str] | None:
     """Interpret a single CLI streaming line as text or finish event."""
 
 def _convert_message_part((self, part: Any)) -> dict[str, Any] | None:
+
+def _coerce_temperature((self, value: Any)) -> float:
+    """Return a safe temperature value bounded to Gemini's supported range."""
+
+def _coerce_max_tokens((self, value: Any)) -> int:
+    """Return a safe max_tokens value within LiteLLM-supported bounds."""
 
 def _build_generation_config((self, optional_params: dict)) -> dict[str, Any]:
 
@@ -15323,6 +15703,7 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 import tomli_w
+from examples import basic_usage
 import uutel.__main__ as cli_module
 from uutel.__main__ import UUTELCLI, _read_gcloud_default_project, main, setup_providers
 from uutel.core.config import UUTELConfig
@@ -15332,11 +15713,29 @@ from uutel.core.config import create_default_config
 
 class TestUUTELCLI:
     """Test the main UUTELCLI class and its functionality."""
-    def setup_method((self)):
+    def setup_method((self)) -> None:
         """Set up test fixtures."""
-    def test_cli_initialization((self)):
+    def test_cli_initialization((self)) -> None:
         """Test CLI initializes correctly and sets up providers."""
-    def test_list_engines_command((self, capsys)):
+    def test_list_engines_outputs_sorted_sections((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+        """Engine and alias listings should be alphabetically ordered for deterministic output."""
+    def test_list_engines_provider_requirements_cover_all_entries((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+        """The provider requirements block should enumerate every configured entry in order."""
+    def test_list_engines_usage_includes_recorded_live_hints((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+        """Usage examples should surface every recorded fixture live hint."""
+    def test_list_engines_usage_reflects_runtime_recorded_hints((
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    )) -> None:
+        """Usage block should reflect current RECORDED_FIXTURES without manual updates."""
+    def test_list_engines_command((self, capsys: pytest.CaptureFixture[str])) -> None:
         """Test list_engines command output."""
     def test_safe_print_swallows_broken_pipe_stdout((self, monkeypatch)):
         """_safe_print should absorb BrokenPipeError when writing to stdout."""
@@ -15415,6 +15814,10 @@ class TestCLIConfigCommands:
         self, monkeypatch: pytest.MonkeyPatch
     )) -> None:
         """Setting engine via alias should persist the canonical identifier."""
+    def test_config_set_engine_synonym_canonicalises_value((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """Common provider synonyms should resolve before persisting engine."""
     def test_config_set_rejects_unknown_engine((
         self, monkeypatch: pytest.MonkeyPatch
     )) -> None:
@@ -15584,17 +15987,44 @@ class TestCLIStreamingSanitisation:
     """Validate sanitisation of streamed provider output."""
     def setup_method((self)) -> None:
 
-def setup_method((self)):
+def setup_method((self)) -> None:
     """Set up test fixtures."""
 
-def test_cli_initialization((self)):
+def test_cli_initialization((self)) -> None:
     """Test CLI initializes correctly and sets up providers."""
 
-def test_list_engines_command((self, capsys)):
+def test_list_engines_outputs_sorted_sections((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+    """Engine and alias listings should be alphabetically ordered for deterministic output."""
+
+def test_list_engines_provider_requirements_cover_all_entries((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+    """The provider requirements block should enumerate every configured entry in order."""
+
+def test_list_engines_usage_includes_recorded_live_hints((
+        self, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+    """Usage examples should surface every recorded fixture live hint."""
+
+def test_list_engines_usage_reflects_runtime_recorded_hints((
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    )) -> None:
+    """Usage block should reflect current RECORDED_FIXTURES without manual updates."""
+
+def test_list_engines_command((self, capsys: pytest.CaptureFixture[str])) -> None:
     """Test list_engines command output."""
 
 def test_complete_command_basic((self, mock_completion, capsys)):
     """Test basic complete command functionality."""
+
+def test_complete_command_filters_control_sequences((
+        self, mock_completion, capsys
+    )) -> None:
+    """ANSI/OSC/C1 bytes from providers should be scrubbed before display and return."""
 
 def test_complete_command_with_system_message((self, mock_completion)):
     """Test complete command with system message."""
@@ -15605,8 +16035,18 @@ def test_complete_command_with_custom_parameters((self, mock_completion)):
 def test_complete_command_with_alias((self, mock_completion)):
     """Alias names resolve to their canonical engine strings."""
 
+def test_complete_command_accepts_punctuated_alias((
+        self, mock_completion: MagicMock
+    )) -> None:
+    """Messy alias input with punctuation should resolve to canonical engine."""
+
 def test_complete_command_streaming((self, mock_completion, capsys)):
     """Test complete command with streaming enabled."""
+
+def test_complete_command_streaming_filters_control_sequences((
+        self, mock_completion, capsys
+    )) -> None:
+    """Streaming paths should strip control bytes across incremental chunks."""
 
 def test_complete_command_streaming_handles_missing_choices((
         self, mock_completion, capsys
@@ -15718,6 +16158,9 @@ def test_test_command_default_engine((self, mock_complete)):
 
 def test_test_command_alias_engine((self, mock_complete)):
     """Alias inputs should resolve to canonical engines in test command."""
+
+def test_test_command_accepts_punctuated_alias((self, mock_complete)):
+    """Messy alias input for test command should resolve via alias normalisation."""
 
 def test_test_command_rejects_placeholder_output((
         self, mock_readiness, mock_complete, capsys
@@ -15849,6 +16292,13 @@ def test_config_set_engine_alias_canonicalises_value((
         self, monkeypatch: pytest.MonkeyPatch
     )) -> None:
     """Setting engine via alias should persist the canonical identifier."""
+
+def fake_save_config((config: UUTELConfig)) -> None:
+
+def test_config_set_engine_synonym_canonicalises_value((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """Common provider synonyms should resolve before persisting engine."""
 
 def fake_save_config((config: UUTELConfig)) -> None:
 
@@ -16093,6 +16543,7 @@ def test_main_handles_broken_pipe_without_crash((mock_fire, capsys)) -> None:
 import subprocess
 import sys
 from textwrap import dedent
+from uutel.__main__ import ENGINE_ALIASES, UUTELCLI
 
 def _run_help((*args: str)) -> str:
     """Execute `python -m uutel <args> --help` and return stdout."""
@@ -16106,13 +16557,115 @@ def test_complete_help_snapshot(()) -> None:
 def test_test_help_snapshot(()) -> None:
     """`uutel test --help` should surface alias guidance."""
 
+def test_cli_docstring_alias_guidance_matches_engine_aliases(()) -> None:
+    """Docstring alias summary should stay in sync with canonical ENGINE_ALIASES data."""
+
+
+# File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/tests/test_cli_helpers.py
+# Language: python
+
+import errno
+import sys
+from types import SimpleNamespace
+from typing import Any
+import pytest
+from uutel.__main__ import (
+    _extract_provider_metadata,
+    _safe_output,
+    _scrub_control_sequences,
+)
+
+class TestScrubControlSequences:
+    """Ensure terminal control sequences are fully stripped before output."""
+    def test_removes_device_control_strings_and_preserves_tabs((self)) -> None:
+        """Device control strings (ESC P ... ST) should be stripped while keeping tabs/newlines."""
+    def test_removes_osc_sequences_and_preserves_whitespace((self)) -> None:
+        """Operating system command sequences should be removed entirely."""
+    def test_removes_c1_control_sequences((self)) -> None:
+        """8-bit CSI sequences should be stripped while leaving visible text intact."""
+    def test_removes_direct_c1_string_sequences((self)) -> None:
+        """8-bit OSC/DCS/APC/PM strings should be removed completely."""
+
+class TestSafeOutput:
+    """_safe_output should guard against broken pipes and strip control bytes."""
+    def test_prints_scrubbed_text_to_stdout((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """ANSI and OSC control sequences should be removed before printing."""
+    def test_accepts_bytes_payload((self, monkeypatch: pytest.MonkeyPatch)) -> None:
+        """Bytes payloads should be decoded, scrubbed, and printed without prefixes."""
+    def test_swallow_broken_pipe_errors((self, monkeypatch: pytest.MonkeyPatch)) -> None:
+        """BrokenPipeError from print should be suppressed."""
+    def test_rejects_unknown_target((self)) -> None:
+        """Unknown target streams should raise ValueError to expose typos."""
+
+class TestExtractProviderMetadata:
+    """Metadata extraction should handle diverse LiteLLM error shapes."""
+    def test_reads_attributes_directly((self)) -> None:
+        """Provider/model attributes should be returned when present."""
+    def test_reads_kwargs_when_present((self)) -> None:
+        """LiteLLM exceptions often stash metadata inside kwargs."""
+    def test_falls_back_to_none_when_missing((self)) -> None:
+        """Absent metadata should render as (None, None)."""
+
+def test_removes_device_control_strings_and_preserves_tabs((self)) -> None:
+    """Device control strings (ESC P ... ST) should be stripped while keeping tabs/newlines."""
+
+def test_removes_osc_sequences_and_preserves_whitespace((self)) -> None:
+    """Operating system command sequences should be removed entirely."""
+
+def test_removes_c1_control_sequences((self)) -> None:
+    """8-bit CSI sequences should be stripped while leaving visible text intact."""
+
+def test_removes_direct_c1_string_sequences((self)) -> None:
+    """8-bit OSC/DCS/APC/PM strings should be removed completely."""
+
+def test_prints_scrubbed_text_to_stdout((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """ANSI and OSC control sequences should be removed before printing."""
+
+def _mock_print((text: str, *, end: str, file: Any, flush: bool)) -> None:
+
+def test_accepts_bytes_payload((self, monkeypatch: pytest.MonkeyPatch)) -> None:
+    """Bytes payloads should be decoded, scrubbed, and printed without prefixes."""
+
+def _mock_print((text: str, *, end: str, file: Any, flush: bool)) -> None:
+
+def test_swallow_broken_pipe_errors((self, monkeypatch: pytest.MonkeyPatch)) -> None:
+    """BrokenPipeError from print should be suppressed."""
+
+def _raise_broken_pipe((*_args: Any, **_kwargs: Any)) -> None:
+
+def _raise_os_error((*_args: Any, **_kwargs: Any)) -> None:
+
+def test_rejects_unknown_target((self)) -> None:
+    """Unknown target streams should raise ValueError to expose typos."""
+
+def test_reads_attributes_directly((self)) -> None:
+    """Provider/model attributes should be returned when present."""
+
+def test_reads_kwargs_when_present((self)) -> None:
+    """LiteLLM exceptions often stash metadata inside kwargs."""
+
+def test_falls_back_to_none_when_missing((self)) -> None:
+    """Absent metadata should render as (None, None)."""
+
 
 # File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/tests/test_cli_validators.py
 # Language: python
 
 import math
 import pytest
-from uutel.__main__ import validate_engine, validate_parameters
+from uutel.__main__ import (
+    ENGINE_ALIASES,
+    MODEL_NAME_LOOKUP,
+    _validate_engine_aliases,
+    validate_engine,
+    validate_parameters,
+)
+import uutel.__main__ as cli
+from uutel.__main__ import AVAILABLE_ENGINES
 
 class TestValidateEngine:
     """Engine validation should normalise aliases and guard unknown inputs."""
@@ -16122,8 +16675,16 @@ class TestValidateEngine:
         """Leading and trailing whitespace should not break alias resolution."""
     def test_validate_engine_accepts_uutel_slash_shortcut((self)) -> None:
         """Inputs using the `uutel/<alias>` shorthand should resolve to canonical engines."""
+    def test_validate_engine_rejects_cross_provider_nested_shorthand((self)) -> None:
+        """Mixed provider nested shorthands should raise helpful guidance."""
+    def test_validate_engine_accepts_model_shorthand_alias((self)) -> None:
+        """uutel-prefixed model identifiers should resolve via MODEL_NAME_LOOKUP."""
     def test_validate_engine_accepts_uutel_hyphen_shortcut((self)) -> None:
         """Inputs using the `uutel-<alias>` shorthand should resolve to canonical engines."""
+    def test_validate_engine_normalises_underscore_alias((self)) -> None:
+        """Underscore variants of aliases should resolve after normalisation."""
+    def test_validate_engine_normalises_whitespace_alias((self)) -> None:
+        """Whitespace within aliases should collapse to single hyphen segments."""
     def test_validate_engine_accepts_canonical_engine_case_insensitively((self)) -> None:
         """Canonical engine identifiers with different casing should resolve to stored casing."""
     def test_validate_engine_preserves_error_guidance_for_unknown_uutel_alias((
@@ -16136,8 +16697,14 @@ class TestValidateEngine:
         """Non-string values should raise the standard guidance message."""
     def test_validate_engine_raises_with_suggestions_for_unknown((self)) -> None:
         """Unknown engines should raise ValueError with helpful suggestions."""
+    def test_validate_engine_error_guidance_sorted((self)) -> None:
+        """Error guidance should list engines and aliases sorted for deterministic output."""
     def test_validate_engine_suggests_similar_names((self)) -> None:
         """Typo'd engines should surface the closest known engine or alias in guidance."""
+    def test_build_model_alias_map_raises_on_duplicate_tail((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """Duplicate tail aliases should raise to prevent ambiguous resolution."""
 
 class TestValidateParameters:
     """Completion parameter validation edge cases."""
@@ -16154,6 +16721,17 @@ class TestValidateParameters:
     def test_validate_parameters_rejects_infinite_temperature((self)) -> None:
         """Infinite temperatures should raise with the finite-range guidance."""
 
+class TestEngineAliasInvariants:
+    """Alias invariants should guard against configuration drift."""
+    def test_validate_engine_aliases_passes_for_current_configuration((self)) -> None:
+        """Current alias map should satisfy invariants."""
+    def test_every_canonical_engine_has_at_least_one_alias((self)) -> None:
+        """Each canonical engine should be reachable through at least one CLI alias."""
+    def test_validate_engine_aliases_detects_missing_target((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """Missing alias targets should raise a descriptive RuntimeError."""
+
 def test_validate_engine_resolves_alias_case_insensitively((self)) -> None:
     """Alias inputs should resolve to canonical engine identifiers regardless of case."""
 
@@ -16162,14 +16740,41 @@ def test_validate_engine_resolves_primary_aliases((
     )) -> None:
     """Primary shortcuts should resolve to their canonical engine identifiers."""
 
+def test_validate_engine_accepts_common_provider_synonyms((
+        self, alias: str, expected: str
+    )) -> None:
+    """Common provider shorthand strings should resolve to canonical engines."""
+
 def test_validate_engine_trims_whitespace_before_resolution((self)) -> None:
     """Leading and trailing whitespace should not break alias resolution."""
 
 def test_validate_engine_accepts_uutel_slash_shortcut((self)) -> None:
     """Inputs using the `uutel/<alias>` shorthand should resolve to canonical engines."""
 
+def test_validate_engine_accepts_nested_uutel_model_shorthand((
+        self, nested_alias: str, expected: str
+    )) -> None:
+    """Nested `uutel/<alias>/<model>` inputs should resolve via `MODEL_NAME_LOOKUP`."""
+
+def test_validate_engine_rejects_cross_provider_nested_shorthand((self)) -> None:
+    """Mixed provider nested shorthands should raise helpful guidance."""
+
+def test_validate_engine_accepts_model_shorthand_alias((self)) -> None:
+    """uutel-prefixed model identifiers should resolve via MODEL_NAME_LOOKUP."""
+
 def test_validate_engine_accepts_uutel_hyphen_shortcut((self)) -> None:
     """Inputs using the `uutel-<alias>` shorthand should resolve to canonical engines."""
+
+def test_validate_engine_normalises_underscore_alias((self)) -> None:
+    """Underscore variants of aliases should resolve after normalisation."""
+
+def test_validate_engine_normalises_whitespace_alias((self)) -> None:
+    """Whitespace within aliases should collapse to single hyphen segments."""
+
+def test_validate_engine_accepts_bare_model_identifiers((
+        self, model_name: str, expected: str
+    )) -> None:
+    """Bare model identifiers should resolve to documented canonical engines."""
 
 def test_validate_engine_accepts_canonical_engine_case_insensitively((self)) -> None:
     """Canonical engine identifiers with different casing should resolve to stored casing."""
@@ -16185,11 +16790,26 @@ def test_validate_engine_rejects_whitespace_only_inputs((self)) -> None:
 def test_validate_engine_rejects_non_string_inputs((self)) -> None:
     """Non-string values should raise the standard guidance message."""
 
+def test_validate_engine_trims_punctuation_aliases((
+        self, alias: str, expected: str
+    )) -> None:
+    """Leading/trailing punctuation should be ignored during alias normalisation."""
+
 def test_validate_engine_raises_with_suggestions_for_unknown((self)) -> None:
     """Unknown engines should raise ValueError with helpful suggestions."""
 
+def test_validate_engine_error_guidance_sorted((self)) -> None:
+    """Error guidance should list engines and aliases sorted for deterministic output."""
+
+def _extract_block((prefix: str)) -> list[str]:
+
 def test_validate_engine_suggests_similar_names((self)) -> None:
     """Typo'd engines should surface the closest known engine or alias in guidance."""
+
+def test_build_model_alias_map_raises_on_duplicate_tail((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """Duplicate tail aliases should raise to prevent ambiguous resolution."""
 
 def test_validate_parameters_accepts_boundary_values((self)) -> None:
     """Minimum and maximum supported values should pass validation."""
@@ -16208,6 +16828,17 @@ def test_validate_parameters_rejects_none_inputs((self)) -> None:
 
 def test_validate_parameters_rejects_infinite_temperature((self)) -> None:
     """Infinite temperatures should raise with the finite-range guidance."""
+
+def test_validate_engine_aliases_passes_for_current_configuration((self)) -> None:
+    """Current alias map should satisfy invariants."""
+
+def test_every_canonical_engine_has_at_least_one_alias((self)) -> None:
+    """Each canonical engine should be reachable through at least one CLI alias."""
+
+def test_validate_engine_aliases_detects_missing_target((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """Missing alias targets should raise a descriptive RuntimeError."""
 
 
 # File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/tests/test_cloud_code_provider.py
@@ -16428,6 +17059,16 @@ class TestCodexCustomLLMModelMapping:
         self,
     )) -> None:
         """my-custom-llm aliases should also resolve to canonical backend IDs."""
+    def test_map_model_name_when_alias_uppercase_then_resolves((self)) -> None:
+        """Alias resolution should be case-insensitive for partner integrations."""
+    def test_map_model_name_when_unknown_mixed_case_then_bad_request((self)) -> None:
+        """Mixed-case unknown aliases should still raise informative errors."""
+    def test_map_model_name_when_blank_input_then_requires_model((self)) -> None:
+        """Whitespace-only inputs should raise a required-model error."""
+    def test_map_model_name_when_non_string_then_type_error((self)) -> None:
+        """Non-string inputs should raise a deterministic bad request error."""
+    def test_map_model_name_when_unknown_then_suggests_matches((self)) -> None:
+        """Unknown aliases should surface close-match suggestions for remediation."""
     def test_map_model_name_when_backend_model_then_passthrough((self)) -> None:
         """Direct backend model names should pass straight through."""
 
@@ -16658,6 +17299,21 @@ def test_map_model_name_when_my_custom_alias_then_resolves_supported_model((
         self,
     )) -> None:
     """my-custom-llm aliases should also resolve to canonical backend IDs."""
+
+def test_map_model_name_when_alias_uppercase_then_resolves((self)) -> None:
+    """Alias resolution should be case-insensitive for partner integrations."""
+
+def test_map_model_name_when_unknown_mixed_case_then_bad_request((self)) -> None:
+    """Mixed-case unknown aliases should still raise informative errors."""
+
+def test_map_model_name_when_blank_input_then_requires_model((self)) -> None:
+    """Whitespace-only inputs should raise a required-model error."""
+
+def test_map_model_name_when_non_string_then_type_error((self)) -> None:
+    """Non-string inputs should raise a deterministic bad request error."""
+
+def test_map_model_name_when_unknown_then_suggests_matches((self)) -> None:
+    """Unknown aliases should surface close-match suggestions for remediation."""
 
 def test_map_model_name_when_backend_model_then_passthrough((self)) -> None:
     """Direct backend model names should pass straight through."""
@@ -17122,15 +17778,20 @@ def test_dependencies_documentation_matches_pyproject(()) -> None:
 import re
 from pathlib import Path
 import pytest
+from examples import basic_usage
 from uutel.__main__ import validate_engine
 
 def test_documented_engine_aliases_resolve((doc_path: Path)) -> None:
     """Every documented `--engine` value should resolve via `validate_engine`."""
 
+def test_readme_quick_usage_includes_recorded_hints(()) -> None:
+    """README quick usage section should surface every recorded live hint."""
+
 
 # File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/tests/test_examples.py
 # Language: python
 
+import json
 import os
 import subprocess
 import sys
@@ -17263,6 +17924,9 @@ def test_recorded_fixtures_align_with_engine_aliases(()) -> None:
 
 def test_recorded_fixtures_live_hint_uses_documented_alias(()) -> None:
     """Live hint commands should advertise supported engine aliases for copy/paste usage."""
+
+def test_recorded_fixtures_use_realistic_transcripts(()) -> None:
+    """Recorded transcripts should match the curated provider responses used in docs."""
 
 
 # File: /Users/adam/Developer/vcs/github.twardoch/pub/uutel/tests/test_exceptions.py
@@ -17646,7 +18310,11 @@ from litellm.types.utils import ModelResponse
 from uutel.core.exceptions import UUTELError
 from uutel.core.runners import SubprocessResult
 from uutel.providers.gemini_cli import GeminiCLIUU
-from uutel.providers.gemini_cli.provider import _GEMINI_ENV_VARS
+from uutel.providers.gemini_cli.provider import (
+    _DEFAULT_MAX_TOKENS,
+    _DEFAULT_TEMPERATURE,
+    _GEMINI_ENV_VARS,
+)
 
 class StubResponse:
     def __init__((self, payload: dict[str, Any])) -> None:
@@ -17655,6 +18323,39 @@ class StubResponse:
 class StubGenerativeModel:
     def __init__((self, model_name: str)) -> None:
     def generate_content((self, contents, **kwargs)):
+
+class TestGenerationConfigDefaults:
+    """Ensure generation config handles malformed optional parameters gracefully."""
+    def setup_method((self)) -> None:
+        """Create a fresh provider for each test."""
+    def test_valid_values_are_preserved((self)) -> None:
+        """Valid numeric overrides should be preserved in the config payload."""
+
+class TestGeminiCLICommandBuilder:
+    """Validate CLI command assembly for optional parameter sanitisation."""
+    def setup_method((self)) -> None:
+        """Create a fresh provider for each test."""
+    def _get_flag_value((self, command: list[str], flag: str)) -> str:
+    def test_invalid_optional_params_fall_back_to_defaults((self)) -> None:
+        """None and out-of-range values should not leak into the CLI command."""
+    def test_stream_flag_included_when_requested((self)) -> None:
+        """Explicit stream requests should append the --stream flag."""
+
+class TestGeminiContentBuilder:
+    """Ensure Gemini request content normalisation handles edge cases."""
+    def setup_method((self)) -> None:
+    def test_build_contents_folds_system_prompt_into_first_user_part((self)) -> None:
+        """System prompts should prepend the first user part instead of emitting separately."""
+    def test_build_contents_skips_tool_and_function_blocks((self)) -> None:
+        """Tool/function call payloads should be omitted from Gemini parts."""
+    def test_convert_message_part_handles_inline_data_uri((self)) -> None:
+        """Data URI images should become inline_data payloads with extracted mime type."""
+
+class TestGeminiCLIPromptBuilder:
+    """Ensure CLI prompt assembly removes empty content and tidies whitespace."""
+    def setup_method((self)) -> None:
+    def test_prompt_ignores_empty_messages_and_collapses_whitespace((self)) -> None:
+        """None or whitespace-only content should be skipped and whitespace normalised."""
 
 class TestGeminiResponseNormalisation:
     """Regression tests for Gemini response normalisation helpers."""
@@ -17719,12 +18420,22 @@ def test_cli_fallback_strips_preamble_logs((
 )) -> None:
     """CLI completion should tolerate banner output before JSON payload."""
 
+def test_cli_fallback_raises_structured_error_payload((
+    monkeypatch: pytest.MonkeyPatch,
+)) -> None:
+    """Structured CLI error JSON should raise a UUTELError with context."""
+
 def test_cli_streaming_yields_incremental_chunks((
     monkeypatch: pytest.MonkeyPatch,
 )) -> None:
     """CLI streaming should emit incremental GenericStreamingChunk objects."""
 
 def fake_stream_subprocess_lines((command, **kwargs)):
+
+def test_cli_streaming_sanitises_mixed_json_payloads((
+    monkeypatch: pytest.MonkeyPatch,
+)) -> None:
+    """Mixed CLI JSON payloads should strip control bytes and ignore tool events."""
 
 def test_cli_streaming_plain_text_fallback((monkeypatch: pytest.MonkeyPatch)) -> None:
     """Plain text CLI output should continue to emit raw chunks."""
@@ -17755,6 +18466,45 @@ def test_build_cli_env_populates_all_known_env_vars(()) -> None:
 
 def test_build_cli_env_returns_empty_dict_without_token(()) -> None:
     """CLI env injection should return empty mapping when token missing or blank."""
+
+def setup_method((self)) -> None:
+    """Create a fresh provider for each test."""
+
+def test_temperature_invalid_values_use_default((self, value: Any)) -> None:
+    """Invalid temperature inputs should fall back to the documented default."""
+
+def test_max_tokens_invalid_values_use_default((self, value: Any)) -> None:
+    """Invalid max_token inputs should fall back to the documented default."""
+
+def test_valid_values_are_preserved((self)) -> None:
+    """Valid numeric overrides should be preserved in the config payload."""
+
+def setup_method((self)) -> None:
+    """Create a fresh provider for each test."""
+
+def _get_flag_value((self, command: list[str], flag: str)) -> str:
+
+def test_invalid_optional_params_fall_back_to_defaults((self)) -> None:
+    """None and out-of-range values should not leak into the CLI command."""
+
+def test_stream_flag_included_when_requested((self)) -> None:
+    """Explicit stream requests should append the --stream flag."""
+
+def setup_method((self)) -> None:
+
+def test_build_contents_folds_system_prompt_into_first_user_part((self)) -> None:
+    """System prompts should prepend the first user part instead of emitting separately."""
+
+def test_build_contents_skips_tool_and_function_blocks((self)) -> None:
+    """Tool/function call payloads should be omitted from Gemini parts."""
+
+def test_convert_message_part_handles_inline_data_uri((self)) -> None:
+    """Data URI images should become inline_data payloads with extracted mime type."""
+
+def setup_method((self)) -> None:
+
+def test_prompt_ignores_empty_messages_and_collapses_whitespace((self)) -> None:
+    """None or whitespace-only content should be skipped and whitespace normalised."""
 
 def setup_method((self)) -> None:
     """Create a fresh provider instance for each test."""

@@ -15,7 +15,11 @@ from litellm.types.utils import ModelResponse
 from uutel.core.exceptions import UUTELError
 from uutel.core.runners import SubprocessResult
 from uutel.providers.gemini_cli import GeminiCLIUU
-from uutel.providers.gemini_cli.provider import _GEMINI_ENV_VARS
+from uutel.providers.gemini_cli.provider import (
+    _DEFAULT_MAX_TOKENS,
+    _DEFAULT_TEMPERATURE,
+    _GEMINI_ENV_VARS,
+)
 
 FIXTURE_PATH = (
     Path(__file__).parent / "data" / "providers" / "gemini" / "simple_completion.json"
@@ -369,6 +373,64 @@ def test_cli_fallback_strips_preamble_logs(
     assert "Gemini" in result.choices[0].message.content
 
 
+def test_cli_fallback_raises_structured_error_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Structured CLI error JSON should raise a UUTELError with context."""
+
+    provider = GeminiCLIUU()
+    monkeypatch.setattr(provider, "_get_api_key", lambda: None)
+    monkeypatch.setattr(provider, "_check_gemini_cli", lambda: True)
+
+    monkeypatch.setattr(
+        "uutel.providers.gemini_cli.provider.load_cli_credentials",
+        lambda **kwargs: (Path("/tmp/creds.json"), {"access_token": "cli-token"}),
+        raising=False,
+    )
+
+    error_payload = {
+        "error": {
+            "code": 429,
+            "status": "RESOURCE_EXHAUSTED",
+            "message": "Quota exceeded for project",
+        }
+    }
+
+    monkeypatch.setattr(
+        "uutel.providers.gemini_cli.provider.run_subprocess",
+        lambda *args, **kwargs: SubprocessResult(
+            command=tuple(args[0]),
+            returncode=0,
+            stdout=json.dumps(error_payload),
+            stderr="",
+            duration_seconds=0.04,
+        ),
+        raising=False,
+    )
+
+    model_response = _make_model_response()
+
+    with pytest.raises(UUTELError) as exc_info:
+        provider.completion(
+            model="gemini-2.5-flash",
+            messages=[{"role": "user", "content": "Trigger error"}],
+            api_base="",
+            custom_prompt_dict={},
+            model_response=model_response,
+            print_verbose=Mock(),
+            encoding="utf-8",
+            api_key=None,
+            logging_obj=Mock(),
+            optional_params={},
+        )
+
+    message = str(exc_info.value)
+    assert "RESOURCE_EXHAUSTED" in message
+    assert "Quota exceeded" in message
+    assert "429" in message
+    assert exc_info.value.provider == "gemini_cli"
+
+
 def test_cli_streaming_yields_incremental_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -418,6 +480,58 @@ def test_cli_streaming_yields_incremental_chunks(
     assert [chunk["text"] for chunk in chunks] == ["Hello", " world", ""]
     assert [chunk["is_finished"] for chunk in chunks] == [False, False, True]
     assert chunks[-1]["finish_reason"] == "stop"
+
+
+def test_cli_streaming_sanitises_mixed_json_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mixed CLI JSON payloads should strip control bytes and ignore tool events."""
+
+    provider = GeminiCLIUU()
+    monkeypatch.setattr(provider, "_get_api_key", lambda: None)
+    monkeypatch.setattr(provider, "_check_gemini_cli", lambda: True)
+
+    monkeypatch.setattr(
+        "uutel.providers.gemini_cli.provider.load_cli_credentials",
+        lambda **kwargs: (Path("/tmp/creds.json"), {"access_token": "cli-token"}),
+        raising=False,
+    )
+
+    raw_lines = [
+        '\x1b[2K{"type": "message", "data": {"type": "text-delta", "text": "Alpha"}}',
+        '{"type": "message", "data": {"type": "text-delta", "text": "\x1b[31mBeta\x1b[0m"}}',
+        '{"type": "message", "data": {"type": "tool_call", "text": "skip"}}',
+        '{"type": "message", "data": {"type": "text-delta", "text": "Gamma"}}',
+        '{"type": "finish", "data": {"finish_reason": "STOP"}}',
+    ]
+
+    monkeypatch.setattr(
+        "uutel.providers.gemini_cli.provider.stream_subprocess_lines",
+        lambda *args, **kwargs: (line for line in raw_lines),
+        raising=False,
+    )
+
+    model_response = _make_model_response()
+    chunks = list(
+        provider.streaming(
+            model="gemini-2.5-flash",
+            messages=[{"role": "user", "content": "Stream via CLI"}],
+            api_base="",
+            custom_prompt_dict={},
+            model_response=model_response,
+            print_verbose=Mock(),
+            encoding="utf-8",
+            api_key=None,
+            logging_obj=Mock(),
+            optional_params={},
+        )
+    )
+
+    texts = [chunk["text"] for chunk in chunks]
+    assert texts == ["Alpha", "Beta", "Gamma", ""], (
+        "Control sequences should be stripped and tool events ignored"
+    )
+    assert [chunk["finish_reason"] for chunk in chunks][-1] == "stop"
 
 
 def test_cli_streaming_plain_text_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -606,6 +720,178 @@ def test_build_cli_env_returns_empty_dict_without_token() -> None:
     assert provider._build_cli_env({"access_token": "   "}) == {}, (
         "Blank token should be ignored"
     )
+
+
+class TestGenerationConfigDefaults:
+    """Ensure generation config handles malformed optional parameters gracefully."""
+
+    def setup_method(self) -> None:
+        """Create a fresh provider for each test."""
+
+        self.provider = GeminiCLIUU()
+
+    @pytest.mark.parametrize("value", [None, True, False, float("nan"), 3.5])
+    def test_temperature_invalid_values_use_default(self, value: Any) -> None:
+        """Invalid temperature inputs should fall back to the documented default."""
+
+        config = self.provider._build_generation_config({"temperature": value})
+
+        assert config["temperature"] == pytest.approx(_DEFAULT_TEMPERATURE)
+
+    @pytest.mark.parametrize("value", [None, True, False, 0, -5, 9999999])
+    def test_max_tokens_invalid_values_use_default(self, value: Any) -> None:
+        """Invalid max_token inputs should fall back to the documented default."""
+
+        config = self.provider._build_generation_config({"max_tokens": value})
+
+        assert config["max_output_tokens"] == _DEFAULT_MAX_TOKENS
+
+    def test_valid_values_are_preserved(self) -> None:
+        """Valid numeric overrides should be preserved in the config payload."""
+
+        config = self.provider._build_generation_config(
+            {"temperature": 1.25, "max_tokens": 256}
+        )
+
+        assert config["temperature"] == pytest.approx(1.25)
+        assert config["max_output_tokens"] == 256
+
+
+class TestGeminiCLICommandBuilder:
+    """Validate CLI command assembly for optional parameter sanitisation."""
+
+    def setup_method(self) -> None:
+        """Create a fresh provider for each test."""
+
+        self.provider = GeminiCLIUU()
+
+    def _get_flag_value(self, command: list[str], flag: str) -> str:
+        index = command.index(flag)
+        return command[index + 1]
+
+    def test_invalid_optional_params_fall_back_to_defaults(self) -> None:
+        """None and out-of-range values should not leak into the CLI command."""
+
+        command = self.provider._build_cli_command(
+            model="gemini-2.5-pro",
+            messages=[{"role": "user", "content": "Hi there"}],
+            optional_params={"temperature": None, "max_tokens": 0},
+        )
+
+        assert self._get_flag_value(command, "--temperature") == str(
+            _DEFAULT_TEMPERATURE
+        )
+        assert self._get_flag_value(command, "--max-tokens") == str(_DEFAULT_MAX_TOKENS)
+        assert "--stream" not in command, "Stream flag should be absent by default"
+
+    def test_stream_flag_included_when_requested(self) -> None:
+        """Explicit stream requests should append the --stream flag."""
+
+        command = self.provider._build_cli_command(
+            model="gemini-2.5-pro",
+            messages=[{"role": "user", "content": "stream please"}],
+            optional_params={},
+            stream=True,
+        )
+
+        assert command[-2] == "--stream"
+        assert command[-1].startswith("User:"), (
+            "Prompt should remain the final argument"
+        )
+
+
+class TestGeminiContentBuilder:
+    """Ensure Gemini request content normalisation handles edge cases."""
+
+    def setup_method(self) -> None:
+        self.provider = GeminiCLIUU()
+
+    def test_build_contents_folds_system_prompt_into_first_user_part(self) -> None:
+        """System prompts should prepend the first user part instead of emitting separately."""
+
+        messages = [
+            {"role": "system", "content": "Stay concise."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Summarise the release notes."},
+                ],
+            },
+            {"role": "assistant", "content": "Sure thing."},
+        ]
+
+        contents = self.provider._build_contents(messages)
+
+        assert contents[0]["role"] == "user"
+        first_text = contents[0]["parts"][0]["text"]
+        assert first_text.startswith("Stay concise."), (
+            "System prompt should prefix the first user part"
+        )
+        assert "Summarise the release notes." in first_text
+        assert contents[1]["role"] == "model"
+        assert contents[1]["parts"][0]["text"] == "Sure thing."
+
+    def test_build_contents_skips_tool_and_function_blocks(self) -> None:
+        """Tool/function call payloads should be omitted from Gemini parts."""
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Step one."},
+                    {"type": "tool_call", "id": "call-1", "text": "ignored"},
+                    {
+                        "functionCall": {
+                            "name": "search",
+                            "args": {"query": "uutel"},
+                        }
+                    },
+                    {"type": "text", "text": "Step two."},
+                ],
+            }
+        ]
+
+        contents = self.provider._build_contents(messages)
+
+        texts = [part["text"] for part in contents[0]["parts"]]
+        assert texts == ["Step one.", "Step two."], (
+            "Tool/function payloads should be stripped from Gemini request parts"
+        )
+
+    def test_convert_message_part_handles_inline_data_uri(self) -> None:
+        """Data URI images should become inline_data payloads with extracted mime type."""
+
+        part = {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,QUJDRA=="},
+        }
+
+        converted = self.provider._convert_message_part(part)
+
+        assert converted == {
+            "inline_data": {"mime_type": "image/png", "data": "QUJDRA=="}
+        }
+
+
+class TestGeminiCLIPromptBuilder:
+    """Ensure CLI prompt assembly removes empty content and tidies whitespace."""
+
+    def setup_method(self) -> None:
+        self.provider = GeminiCLIUU()
+
+    def test_prompt_ignores_empty_messages_and_collapses_whitespace(self) -> None:
+        """None or whitespace-only content should be skipped and whitespace normalised."""
+
+        messages = [
+            {"role": "system", "content": None},
+            {"role": "user", "content": "  hello   world   "},
+            {"role": "assistant", "content": "line1\n\nline2\tline3"},
+        ]
+
+        prompt = self.provider._build_cli_prompt(messages)
+
+        assert "System:" not in prompt, "Empty system message should be omitted"
+        assert prompt == "User: hello world\n\nAssistant: line1 line2 line3"
 
 
 class TestGeminiResponseNormalisation:

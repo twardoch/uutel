@@ -9,7 +9,7 @@
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Sure—here's a defensive sorter that returns a sorted copy without mutating the original sequence. It filters out None values and keeps numeric types intact.\n\n```python\nfrom collections.abc import Sequence\n\ndef sort_numbers(values: Sequence[int | float]) -> list[int | float]:\n    \"\"\"Return a sorted copy while leaving the original untouched.\"\"\"\n    cleaned = [value for value in values if value is not None]\n    return sorted(cleaned)\n```"
+        "content": "Absolutely—here's a safe sorter that keeps the original list untouched, filters out None entries, and returns a stable sorted copy.\n\n```python\nfrom collections.abc import Sequence\n\ndef tidy_sort(values: Sequence[int | float | None]) -> list[int | float]:\n    clean = [value for value in values if value is not None]\n    return sorted(clean)\n\nprint(tidy_sort([5, None, 2, 1]))\n```"
       },
       "finish_reason": "stop"
     }

@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 import tomli_w
+from examples import basic_usage
 
 import uutel.__main__ as cli_module
 from uutel.__main__ import UUTELCLI, _read_gcloud_default_project, main, setup_providers
@@ -27,18 +28,134 @@ from uutel.core.config import UUTELConfig
 class TestUUTELCLI:
     """Test the main UUTELCLI class and its functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.cli = UUTELCLI()
 
-    def test_cli_initialization(self):
+    def test_cli_initialization(self) -> None:
         """Test CLI initializes correctly and sets up providers."""
         assert self.cli is not None
         # Verify providers are set up during initialization
         # This is implicitly tested by successful CLI creation
 
-    def test_list_engines_command(self, capsys):
+    def test_list_engines_outputs_sorted_sections(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Engine and alias listings should be alphabetically ordered for deterministic output."""
+
+        self.cli.list_engines()
+        captured = capsys.readouterr()
+
+        lines = captured.out.splitlines()
+        engine_keys = sorted(cli_module.AVAILABLE_ENGINES.keys())
+        expected_engine_lines = [f"  {engine}" for engine in engine_keys]
+        engine_candidates = {f"  {engine}" for engine in cli_module.AVAILABLE_ENGINES}
+        printed_engine_lines = [line for line in lines if line in engine_candidates]
+
+        assert printed_engine_lines == expected_engine_lines, (
+            "Engine list should be alphabetically ordered"
+        )
+
+        alias_items = sorted(cli_module.ENGINE_ALIASES.items())
+        expected_alias_lines = [
+            f"  {alias} -> {target}" for alias, target in alias_items
+        ]
+        alias_candidates = {
+            f"  {alias} -> {target}"
+            for alias, target in cli_module.ENGINE_ALIASES.items()
+        }
+        printed_alias_lines = [line for line in lines if line in alias_candidates]
+
+        assert printed_alias_lines == expected_alias_lines, (
+            "Alias list should be alphabetically ordered"
+        )
+
+    def test_list_engines_provider_requirements_cover_all_entries(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The provider requirements block should enumerate every configured entry in order."""
+
+        self.cli.list_engines()
+        captured = capsys.readouterr()
+
+        lines = captured.out.splitlines()
+        try:
+            start_index = lines.index("🔐 Provider Requirements:") + 1
+        except ValueError:  # pragma: no cover - diagnostic clarity
+            pytest.fail("Provider requirements header missing from list_engines output")
+
+        requirement_lines: list[str] = []
+        for line in lines[start_index:]:
+            if not line.strip():
+                break
+            requirement_lines.append(line)
+
+        expected_lines = [
+            f"  {name}: {guidance}"
+            for name, guidance in cli_module.PROVIDER_REQUIREMENTS
+        ]
+
+        assert requirement_lines == expected_lines, (
+            "Provider requirements output drifted from configured guidance list"
+        )
+
+    def test_list_engines_usage_includes_recorded_live_hints(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Usage examples should surface every recorded fixture live hint."""
+
+        self.cli.list_engines()
+        captured = capsys.readouterr()
+
+        usage_block = captured.out.split("🔐 Provider Requirements:", 1)[0]
+
+        missing: list[str] = []
+        for fixture in basic_usage.RECORDED_FIXTURES:
+            hint = fixture["live_hint"]
+            expected_line = f"  {hint}"
+            if expected_line not in usage_block:
+                missing.append(hint)
+
+        assert not missing, (
+            "list_engines usage examples missing recorded live hints: "
+            + ", ".join(missing)
+        )
+
+    def test_list_engines_usage_reflects_runtime_recorded_hints(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Usage block should reflect current RECORDED_FIXTURES without manual updates."""
+
+        patched_fixtures = list(basic_usage.RECORDED_FIXTURES)
+        patched_fixtures.append(
+            {
+                "label": "Patched Codex",
+                "key": "codex-patched",
+                "engine": "codex",
+                "prompt": "Check sanitisation",
+                "path": patched_fixtures[0]["path"],
+                "live_hint": 'uutel complete --prompt "Check sanitisation" --engine codex',
+            }
+        )
+        monkeypatch.setattr(
+            basic_usage, "RECORDED_FIXTURES", patched_fixtures, raising=False
+        )
+
+        self.cli.list_engines()
+        captured = capsys.readouterr()
+
+        usage_block = captured.out.split("🔐 Provider Requirements:", 1)[0]
+
+        assert (
+            '  uutel complete --prompt "Check sanitisation" --engine codex'
+            in usage_block
+        ), "Usage block should include dynamically patched live hint"
+
+    def test_list_engines_command(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test list_engines command output."""
+
         self.cli.list_engines()
         captured = capsys.readouterr()
 
@@ -77,13 +194,24 @@ class TestUUTELCLI:
         assert "uutel test --engine claude" in captured.out, (
             "Test usage should show claude alias"
         )
+        assert "uutel test --engine gemini" in captured.out, (
+            "Test usage should show gemini alias"
+        )
+        assert "uutel test --engine cloud" in captured.out, (
+            "Test usage should show cloud alias"
+        )
 
         # Alias summary is shown for quick selection
         assert "Aliases:" in captured.out
         assert "codex -> my-custom-llm/codex-large" in captured.out
+        assert "codex-large -> my-custom-llm/codex-large" in captured.out
+        assert "openai-codex -> my-custom-llm/codex-large" in captured.out
         assert "claude -> uutel-claude/claude-sonnet-4" in captured.out
         assert "gemini -> uutel-gemini/gemini-2.5-pro" in captured.out
         assert "cloud -> uutel-cloud/gemini-2.5-pro" in captured.out
+        assert "claude-code -> uutel-claude/claude-sonnet-4" in captured.out
+        assert "gemini-cli -> uutel-gemini/gemini-2.5-pro" in captured.out
+        assert "cloud-code -> uutel-cloud/gemini-2.5-pro" in captured.out
 
     @patch("litellm.completion")
     def test_complete_command_basic(self, mock_completion, capsys):
@@ -108,6 +236,27 @@ class TestUUTELCLI:
         assert result == "Test response"
         captured = capsys.readouterr()
         assert "Test response" in captured.out
+
+    @patch("litellm.completion")
+    def test_complete_command_filters_control_sequences(
+        self, mock_completion, capsys
+    ) -> None:
+        """ANSI/OSC/C1 bytes from providers should be scrubbed before display and return."""
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = (
+            "Result \x1b[31mtext\x1b[0m\x90ignored payload\x9c!\x1b]2;title\x07"
+        )
+        mock_completion.return_value = mock_response
+
+        result = self.cli.complete("Sanitise this")
+
+        assert result == "Result text!"
+        captured = capsys.readouterr()
+        assert "Result text!" in captured.out
+        assert "\x1b" not in captured.out
+        assert "\x90" not in captured.out
 
     @patch("litellm.completion")
     def test_complete_command_with_system_message(self, mock_completion):
@@ -163,6 +312,22 @@ class TestUUTELCLI:
         assert call_args[1]["model"] == "my-custom-llm/codex-large"
 
     @patch("litellm.completion")
+    def test_complete_command_accepts_punctuated_alias(
+        self, mock_completion: MagicMock
+    ) -> None:
+        """Messy alias input with punctuation should resolve to canonical engine."""
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Punctuated alias"
+        mock_completion.return_value = mock_response
+
+        self.cli.complete("Alias prompt", engine="--codex--")
+
+        call_args = mock_completion.call_args
+        assert call_args[1]["model"] == "my-custom-llm/codex-large"
+
+    @patch("litellm.completion")
     def test_complete_command_streaming(self, mock_completion, capsys):
         """Test complete command with streaming enabled."""
         # Mock streaming response
@@ -186,6 +351,30 @@ class TestUUTELCLI:
         assert result == "Hello world!"
         captured = capsys.readouterr()
         assert "Hello world!" in captured.out
+
+    @patch("litellm.completion")
+    def test_complete_command_streaming_filters_control_sequences(
+        self, mock_completion, capsys
+    ) -> None:
+        """Streaming paths should strip control bytes across incremental chunks."""
+
+        chunk_one = MagicMock()
+        chunk_one.choices = [MagicMock()]
+        chunk_one.choices[0].delta.content = "Hello\x1b]0;title\x07 "
+
+        chunk_two = MagicMock()
+        chunk_two.choices = [MagicMock()]
+        chunk_two.choices[0].delta.content = "\x9b31mworld!"
+
+        mock_completion.return_value = [chunk_one, chunk_two]
+
+        result = self.cli.complete("Stream sanitisation", stream=True)
+
+        assert result == "Hello world!"
+        captured = capsys.readouterr()
+        assert "Hello world!" in captured.out
+        assert "\x1b" not in captured.out
+        assert "\x9b" not in captured.out
 
     @patch("litellm.completion")
     def test_complete_command_streaming_handles_missing_choices(
@@ -609,6 +798,17 @@ class TestUUTELCLI:
 
         call_args = mock_complete.call_args
         assert call_args[1]["engine"] == "uutel-claude/claude-sonnet-4"
+
+    @patch("uutel.__main__.UUTELCLI.complete")
+    def test_test_command_accepts_punctuated_alias(self, mock_complete):
+        """Messy alias input for test command should resolve via alias normalisation."""
+
+        mock_complete.return_value = "Alias test response"
+
+        self.cli.test("__gemini__")
+
+        call_args = mock_complete.call_args
+        assert call_args[1]["engine"] == "uutel-gemini/gemini-2.5-pro"
 
     @patch("uutel.__main__.UUTELCLI.complete")
     @patch("uutel.__main__.UUTELCLI._check_provider_readiness")
@@ -1137,6 +1337,30 @@ class TestCLIConfigCommands:
         assert "config" in captured, "save_config should be invoked with updated config"
         assert captured["config"].engine == "uutel-claude/claude-sonnet-4", (
             "Persisted config should store canonical engine"
+        )
+
+    def test_config_set_engine_synonym_canonicalises_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Common provider synonyms should resolve before persisting engine."""
+
+        captured: dict[str, UUTELConfig] = {}
+
+        def fake_save_config(config: UUTELConfig) -> None:
+            captured["config"] = config
+
+        monkeypatch.setattr("uutel.__main__.save_config", fake_save_config)
+
+        result = UUTELCLI.config(self.cli, "set", engine="gemini-cli")
+
+        assert result.startswith("✅ Configuration updated"), (
+            "Config command should report success for recognised synonyms"
+        )
+        assert self.cli.config.engine == "uutel-gemini/gemini-2.5-pro", (
+            "CLI state should use canonical engine after synonym resolution"
+        )
+        assert captured["config"].engine == "uutel-gemini/gemini-2.5-pro", (
+            "Persisted config should store canonical engine after synonym resolution"
         )
 
     def test_config_set_rejects_unknown_engine(
@@ -1671,10 +1895,19 @@ class TestCLIDiagnostics:
         captured = capsys.readouterr()
 
         assert "🩺 UUTEL Diagnostics" in captured.out
-        assert "✅ codex" in captured.out
-        assert "⚠️ claude" in captured.out
-        assert "⚠️ gemini" in captured.out
-        assert "⚠️ cloud" in captured.out
+        assert (
+            "✅ codex, codex-large, openai-codex (my-custom-llm/codex-large)"
+            in captured.out
+        ), "Codex diagnostics should list all aliases"
+        assert "⚠️ claude, claude-code (uutel-claude/claude-sonnet-4)" in captured.out, (
+            "Claude diagnostics should group claude aliases"
+        )
+        assert "⚠️ gemini, gemini-cli (uutel-gemini/gemini-2.5-pro)" in captured.out, (
+            "Gemini diagnostics should group gemini aliases"
+        )
+        assert "⚠️ cloud, cloud-code (uutel-cloud/gemini-2.5-pro)" in captured.out, (
+            "Cloud diagnostics should group cloud aliases"
+        )
         assert "Using OPENAI_API_KEY" in captured.out
         assert "⚠️ Claude CLI missing" in captured.out
         assert "⚠️ Gemini credentials missing" in captured.out

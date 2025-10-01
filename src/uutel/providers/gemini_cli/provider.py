@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import uuid
 from collections.abc import Iterable
@@ -356,6 +357,13 @@ class GeminiCLIUU(BaseUU):
                 "Gemini CLI returned empty output",
                 provider=self.provider_name,
             )
+        lines = [
+            self._strip_ansi_sequences(line)
+            for line in stdout.splitlines()
+            if line.strip()
+        ]
+        if lines:
+            self._raise_if_cli_error(lines)
         payload = self._extract_cli_completion_payload(stdout)
         return self._normalise_response(payload)
 
@@ -439,18 +447,33 @@ class GeminiCLIUU(BaseUU):
 
     def _build_contents(self, messages: list) -> list[dict[str, Any]]:
         contents: list[dict[str, Any]] = []
+        system_prefix_segments: list[str] = []
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
             if role == "system":
-                system_text = content if isinstance(content, str) else ""
-                if contents and contents[0]["role"] == "user":
-                    parts = contents[0].setdefault("parts", [{"text": ""}])
-                    parts[0]["text"] = f"{system_text}\n\n" + parts[0].get("text", "")
+                system_text: str = ""
+                if isinstance(content, str):
+                    system_text = content.strip()
+                elif isinstance(content, list):
+                    collected: list[str] = []
+                    for part in content:
+                        converted = self._convert_message_part(part)
+                        if (
+                            converted
+                            and isinstance(converted.get("text"), str)
+                            and converted["text"].strip()
+                        ):
+                            collected.append(converted["text"].strip())
+                    system_text = "\n".join(collected).strip()
+                elif isinstance(content, dict):
+                    maybe_text = content.get("text")
+                    if isinstance(maybe_text, str) and maybe_text.strip():
+                        system_text = maybe_text.strip()
                 else:
-                    contents.insert(
-                        0, {"role": "user", "parts": [{"text": system_text}]}
-                    )
+                    system_text = str(content).strip()
+                if system_text:
+                    system_prefix_segments.append(system_text)
                 continue
 
             mapped_role = "user" if role == "user" else "model"
@@ -463,8 +486,24 @@ class GeminiCLIUU(BaseUU):
             else:
                 parts.append({"text": str(content)})
 
+            if role == "user" and system_prefix_segments:
+                prefix = "\n\n".join(system_prefix_segments).strip()
+                if parts:
+                    first_part = parts[0]
+                    if isinstance(first_part.get("text"), str) and first_part["text"]:
+                        first_part["text"] = f"{prefix}\n\n{first_part['text']}"
+                    else:
+                        parts.insert(0, {"text": prefix})
+                else:
+                    parts.append({"text": prefix})
+                system_prefix_segments.clear()
+
             if parts:
                 contents.append({"role": mapped_role, "parts": parts})
+            elif role == "user" and system_prefix_segments:
+                prefix = "\n\n".join(system_prefix_segments)
+                contents.append({"role": mapped_role, "parts": [{"text": prefix}]})
+                system_prefix_segments.clear()
         return contents
 
     def _extract_stub_call_recorder(
@@ -623,6 +662,9 @@ class GeminiCLIUU(BaseUU):
 
             block_type = block.get("type") or event_type
 
+            if block_type in {"tool_call", "tool_calls", "function_call"}:
+                continue
+
             if block_type == "text-delta":
                 text = block.get("text")
                 if isinstance(text, str) and text:
@@ -683,14 +725,46 @@ class GeminiCLIUU(BaseUU):
             return {"text": part}
         return None
 
+    def _coerce_temperature(self, value: Any) -> float:
+        """Return a safe temperature value bounded to Gemini's supported range."""
+
+        if value is None or isinstance(value, bool):
+            return _DEFAULT_TEMPERATURE
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return _DEFAULT_TEMPERATURE
+        if not math.isfinite(numeric):
+            return _DEFAULT_TEMPERATURE
+        if not 0.0 <= numeric <= 2.0:
+            return _DEFAULT_TEMPERATURE
+        return numeric
+
+    def _coerce_max_tokens(self, value: Any) -> int:
+        """Return a safe max_tokens value within LiteLLM-supported bounds."""
+
+        if value is None or isinstance(value, bool):
+            return _DEFAULT_MAX_TOKENS
+        if isinstance(value, int):
+            candidate = value
+        else:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return _DEFAULT_MAX_TOKENS
+            if not math.isfinite(numeric):
+                return _DEFAULT_MAX_TOKENS
+            candidate = int(numeric)
+        if candidate < 1 or candidate > 8000:
+            return _DEFAULT_MAX_TOKENS
+        return candidate
+
     def _build_generation_config(self, optional_params: dict) -> dict[str, Any]:
         config: dict[str, Any] = {}
-        temperature = optional_params.get("temperature", _DEFAULT_TEMPERATURE)
-        if temperature is not None:
-            config["temperature"] = float(temperature)
-        max_tokens = optional_params.get("max_tokens", _DEFAULT_MAX_TOKENS)
-        if max_tokens is not None:
-            config["max_output_tokens"] = int(max_tokens)
+        temperature = self._coerce_temperature(optional_params.get("temperature"))
+        config["temperature"] = temperature
+        max_tokens = self._coerce_max_tokens(optional_params.get("max_tokens"))
+        config["max_output_tokens"] = max_tokens
         schema = self._extract_json_schema(optional_params.get("response_format"))
         if schema is not None:
             config["response_schema"] = schema
@@ -952,8 +1026,8 @@ class GeminiCLIUU(BaseUU):
         optional_params: dict,
         stream: bool = False,
     ) -> list[str]:
-        temperature = optional_params.get("temperature", _DEFAULT_TEMPERATURE)
-        max_tokens = optional_params.get("max_tokens", _DEFAULT_MAX_TOKENS)
+        temperature = self._coerce_temperature(optional_params.get("temperature"))
+        max_tokens = self._coerce_max_tokens(optional_params.get("max_tokens"))
         prompt = self._build_cli_prompt(messages)
         command = [
             "gemini",
@@ -975,9 +1049,18 @@ class GeminiCLIUU(BaseUU):
     def _build_cli_prompt(self, messages: list) -> str:
         parts: list[str] = []
         for message in messages:
-            role = message.get("role", "user")
-            prefix = role.capitalize()
-            parts.append(f"{prefix}: {message.get('content', '')}")
+            role = message.get("role", "user") or "user"
+            prefix = str(role).split("/", 1)[0].capitalize()
+            raw_content = message.get("content", "")
+            if raw_content is None:
+                continue
+            if isinstance(raw_content, str):
+                cleaned = " ".join(raw_content.split())
+            else:
+                cleaned = str(raw_content).strip()
+            if not cleaned:
+                continue
+            parts.append(f"{prefix}: {cleaned}")
         return "\n\n".join(parts)
 
     def _build_cli_env(self, credentials: dict[str, Any]) -> dict[str, str]:

@@ -247,6 +247,67 @@ class TestCodexCustomLLMModelMapping:
 
         assert resolved == "gpt-4o-mini"
 
+    def test_map_model_name_when_alias_uppercase_then_resolves(self) -> None:
+        """Alias resolution should be case-insensitive for partner integrations."""
+
+        custom_llm = CodexCustomLLM()
+
+        resolved = custom_llm._map_model_name("CODEX-LARGE")
+
+        assert resolved == "gpt-4o"
+
+    def test_map_model_name_when_unknown_mixed_case_then_bad_request(self) -> None:
+        """Mixed-case unknown aliases should still raise informative errors."""
+
+        custom_llm = CodexCustomLLM()
+
+        with pytest.raises(litellm.BadRequestError) as exc_info:
+            custom_llm._map_model_name("Codex-Unknown")
+
+        error = exc_info.value
+        assert error.model == "Codex-Unknown"
+        assert "Unsupported" in str(error)
+
+    def test_map_model_name_when_blank_input_then_requires_model(self) -> None:
+        """Whitespace-only inputs should raise a required-model error."""
+
+        custom_llm = CodexCustomLLM()
+
+        with pytest.raises(litellm.BadRequestError) as exc_info:
+            custom_llm._map_model_name("   \n  ")
+
+        error = exc_info.value
+        assert error.llm_provider == "codex"
+        assert "Model name is required" in str(error)
+
+    def test_map_model_name_when_non_string_then_type_error(self) -> None:
+        """Non-string inputs should raise a deterministic bad request error."""
+
+        custom_llm = CodexCustomLLM()
+
+        candidates = [None, 123]
+
+        for candidate in candidates:
+            with pytest.raises(litellm.BadRequestError) as exc_info:
+                custom_llm._map_model_name(candidate)  # type: ignore[arg-type]
+
+            error = exc_info.value
+            assert error.llm_provider == "codex"
+            assert "Model must be a string" in str(error)
+
+    def test_map_model_name_when_unknown_then_suggests_matches(self) -> None:
+        """Unknown aliases should surface close-match suggestions for remediation."""
+
+        custom_llm = CodexCustomLLM()
+
+        with pytest.raises(litellm.BadRequestError) as exc_info:
+            custom_llm._map_model_name("codex-lagre")
+
+        message = str(exc_info.value)
+        assert "Did you mean" in message
+        assert "codex-large" in message
+        assert "codex-mini" in message
+
     def test_map_model_name_when_backend_model_then_passthrough(self) -> None:
         """Direct backend model names should pass straight through."""
 

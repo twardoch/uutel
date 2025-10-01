@@ -17,6 +17,7 @@ from typing import Any
 
 import fire
 import litellm
+from examples import basic_usage
 
 from uutel.core.config import (
     UUTELConfig,
@@ -48,12 +49,85 @@ AVAILABLE_ENGINES = {
 
 ENGINE_ALIASES = {
     "codex": "my-custom-llm/codex-large",
+    "codex-large": "my-custom-llm/codex-large",
+    "openai-codex": "my-custom-llm/codex-large",
     "claude": "uutel-claude/claude-sonnet-4",
+    "claude-code": "uutel-claude/claude-sonnet-4",
     "gemini": "uutel-gemini/gemini-2.5-pro",
+    "gemini-cli": "uutel-gemini/gemini-2.5-pro",
     "cloud": "uutel-cloud/gemini-2.5-pro",
+    "cloud-code": "uutel-cloud/gemini-2.5-pro",
 }
 
+
+_ALLOWED_MODEL_ALIAS_DUPLICATES = {"gemini-2.5-pro"}
+
+
+def _build_model_alias_map() -> dict[str, str]:
+    """Return mapping of bare model identifiers to canonical engine names."""
+
+    alias_map: dict[str, str] = {}
+
+    def _register(alias: str, target: str) -> None:
+        existing = alias_map.get(alias)
+        if existing and existing != target:
+            if alias in _ALLOWED_MODEL_ALIAS_DUPLICATES:
+                return
+            raise RuntimeError(
+                f"Duplicate model alias '{alias}' maps to both '{existing}' and '{target}'"
+            )
+        alias_map[alias] = target
+
+    for engine_name in AVAILABLE_ENGINES:
+        tail = engine_name.split("/", 1)[-1]
+        _register(tail, engine_name)
+
+    for alias, target in {
+        "gpt-4o-mini": "my-custom-llm/codex-mini",
+        "gpt-4-turbo": "my-custom-llm/codex-turbo",
+        "gpt-3.5-turbo": "my-custom-llm/codex-fast",
+        "o1-preview": "my-custom-llm/codex-preview",
+    }.items():
+        _register(alias, target)
+
+    return alias_map
+
+
+MODEL_NAME_ALIASES = _build_model_alias_map()
+
+
+def _validate_engine_aliases() -> None:
+    """Ensure alias targets refer to known engines."""
+
+    missing_targets = [
+        f"{alias} -> {target}"
+        for alias, target in ENGINE_ALIASES.items()
+        if target not in AVAILABLE_ENGINES
+    ]
+    if missing_targets:
+        joined = ", ".join(missing_targets)
+        raise RuntimeError(f"ENGINE_ALIASES references unknown engines: {joined}")
+
+
 CANONICAL_ENGINE_LOOKUP = {name.lower(): name for name in AVAILABLE_ENGINES}
+MODEL_NAME_LOOKUP = {
+    alias.lower(): target for alias, target in MODEL_NAME_ALIASES.items()
+}
+_validate_engine_aliases()
+
+_ALIAS_WHITESPACE_PATTERN = re.compile(r"\s+")
+_ALIAS_DUPLICATE_DASH_PATTERN = re.compile(r"-{2,}")
+
+
+def _normalise_engine_alias(value: str) -> str:
+    """Return a normalised alias form (lowercase, hyphenated) for lookup."""
+
+    replaced = value.replace("_", "-")
+    collapsed_whitespace = _ALIAS_WHITESPACE_PATTERN.sub("-", replaced)
+    collapsed_dashes = _ALIAS_DUPLICATE_DASH_PATTERN.sub("-", collapsed_whitespace)
+    trimmed = collapsed_dashes.strip(" -_")
+    return trimmed.lower()
+
 
 PROVIDER_REQUIREMENTS = [
     (
@@ -168,34 +242,107 @@ def validate_engine(engine: str) -> str:
         raise ValueError(
             "Engine name is required and must be a non-empty string (received whitespace-only input)"
         )
-    normalised_alias = engine_key.lower()
-    alias_target = ENGINE_ALIASES.get(normalised_alias)
-    if not alias_target:
-        shorthand_target: str | None = None
-        if normalised_alias.startswith("uutel/"):
-            candidate = normalised_alias.split("/", 1)[1]
-            shorthand_target = ENGINE_ALIASES.get(candidate)
-        elif normalised_alias.startswith("uutel-"):
-            candidate = normalised_alias.split("-", 1)[1]
-            if "/" not in candidate:
-                shorthand_target = ENGINE_ALIASES.get(candidate)
-        if shorthand_target:
-            alias_target = shorthand_target
-    if alias_target:
-        engine_key = alias_target
+    provided_engine = engine_key
+    normalised_alias = _normalise_engine_alias(engine_key)
+
+    def _resolve_candidate(candidate: str) -> str | None:
+        if not candidate:
+            return None
+        direct_target = ENGINE_ALIASES.get(candidate)
+        if direct_target:
+            return direct_target
+        model_target = MODEL_NAME_LOOKUP.get(candidate)
+        if model_target:
+            return model_target
+        if "/" in candidate:
+            tail = candidate.rsplit("/", 1)[-1]
+            if tail and tail != candidate:
+                direct_target = ENGINE_ALIASES.get(tail)
+                if direct_target:
+                    return direct_target
+                return MODEL_NAME_LOOKUP.get(tail)
+        return None
+
+    def _resolve_nested_shorthand_value(
+        normalised_value: str,
+        original_value: str,
+        separator: str,
+    ) -> str | None:
+        try:
+            candidate_normalised = normalised_value.split(separator, 1)[1]
+        except IndexError:
+            return None
+
+        resolved = _resolve_candidate(candidate_normalised)
+        if not resolved:
+            return None
+
+        try:
+            candidate_original = original_value.split(separator, 1)[1]
+        except IndexError:
+            candidate_original = candidate_normalised
+
+        alias_original_segment = candidate_original.split("/", 1)[0]
+        alias_norm_segment = _normalise_engine_alias(alias_original_segment)
+        alias_target = (
+            _resolve_candidate(alias_norm_segment) if alias_norm_segment else None
+        )
+
+        if alias_norm_segment and alias_norm_segment not in resolved.lower():
+            alias_hint = alias_target or alias_original_segment or alias_norm_segment
+            raise ValueError(
+                f"Cross-provider nested shorthand '{provided_engine}' is invalid: alias "
+                f"'{alias_original_segment or alias_norm_segment}' resolves to '{alias_hint}' but model resolves to '{resolved}'."
+            )
+
+        return resolved
+
+    alias_target: str | None = None
+    if normalised_alias in AVAILABLE_ENGINES:
+        engine_key = normalised_alias
+    else:
+        alias_target = ENGINE_ALIASES.get(normalised_alias)
+        if not alias_target:
+            shorthand_target: str | None = None
+            if normalised_alias.startswith("uutel/"):
+                shorthand_target = _resolve_nested_shorthand_value(
+                    normalised_alias,
+                    engine_key,
+                    "/",
+                )
+            elif normalised_alias.startswith("uutel-"):
+                shorthand_target = _resolve_nested_shorthand_value(
+                    normalised_alias,
+                    engine_key,
+                    "-",
+                )
+            if shorthand_target:
+                alias_target = shorthand_target
+        if alias_target:
+            engine_key = alias_target
+        else:
+            model_alias_target = MODEL_NAME_LOOKUP.get(normalised_alias)
+            if model_alias_target:
+                engine_key = model_alias_target
 
     canonical_target = CANONICAL_ENGINE_LOOKUP.get(engine_key.lower())
     if canonical_target:
         engine_key = canonical_target
 
     if engine_key not in AVAILABLE_ENGINES:
-        available = "\n  ".join(f"{k}: {v}" for k, v in AVAILABLE_ENGINES.items())
-        aliases = "\n  ".join(
-            f"{alias} -> {target}" for alias, target in ENGINE_ALIASES.items()
-        )
+        available_lines = [
+            f"{name}: {description}"
+            for name, description in sorted(AVAILABLE_ENGINES.items())
+        ]
+        aliases_lines = [
+            f"{alias} -> {target}" for alias, target in sorted(ENGINE_ALIASES.items())
+        ]
+        available = "\n  ".join(available_lines)
+        aliases = "\n  ".join(aliases_lines)
 
         candidate_map = {
             **CANONICAL_ENGINE_LOOKUP,
+            **MODEL_NAME_LOOKUP,
             **{alias.lower(): alias for alias in ENGINE_ALIASES},
         }
         close_matches = get_close_matches(
@@ -207,7 +354,7 @@ def validate_engine(engine: str) -> str:
             suggestion_lines = f"Did you mean: {suggestions}?\n\n"
 
         raise ValueError(
-            f"Unknown engine '{engine}'.\n\n"
+            f"Unknown engine '{provided_engine}'.\n\n"
             f"{suggestion_lines}"
             f"Available engines:\n  {available}\n\n"
             f"Alias shortcuts:\n  {aliases}\n\n"
@@ -253,10 +400,28 @@ def _extract_provider_metadata(error: Exception) -> tuple[str | None, str | None
     provider = getattr(error, "provider", None) or getattr(error, "llm_provider", None)
     model = getattr(error, "model", None) or getattr(error, "model_name", None)
 
+    data_sources: list[dict[str, Any]] = []
+
     if hasattr(error, "__dict__"):
         data = error.__dict__
-        provider = provider or data.get("provider") or data.get("llm_provider")
-        model = model or data.get("model") or data.get("model_name") or data.get("llm")
+        if isinstance(data, dict):
+            data_sources.append(data)
+            nested_kwargs = data.get("kwargs")
+            if isinstance(nested_kwargs, dict):
+                data_sources.append(nested_kwargs)
+
+    explicit_kwargs = getattr(error, "kwargs", None)
+    if isinstance(explicit_kwargs, dict) and explicit_kwargs not in data_sources:
+        data_sources.append(explicit_kwargs)
+
+    for source in data_sources:
+        provider = provider or source.get("provider") or source.get("llm_provider")
+        model = (
+            model
+            or source.get("model")
+            or source.get("model_name")
+            or source.get("llm")
+        )
 
     return (str(provider) if provider else None, str(model) if model else None)
 
@@ -289,9 +454,21 @@ def format_error_message(error: Exception, context: str = "") -> str:
     return f"❌ Error{context_suffix}: {error_msg}\n💡 Use --verbose for more details"
 
 
-_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+_ANSI_ESCAPE_RE = re.compile(r"(\x1b\[[0-9;?]*[ -/]*[@-~])|(\x9b[0-9;?]*[ -/]*[@-~])")
 _PRINTABLE_THRESHOLD = 32
 _ALLOWED_CONTROL_CODES = {9, 10, 13}  # \t, \n, \r
+_ESC = "\x1b"
+_DELIMITED_ESCAPES = {"]", "P", "^", "_"}
+_LINE_TERMINATORS = {"\n", "\r"}
+_BEL = "\x07"
+_ST = "\x9c"
+_C1_STRING_STARTERS: dict[str, bool] = {
+    "\x90": False,  # DCS
+    "\x9d": True,  # OSC (allows BEL terminator)
+    "\x9e": False,  # PM
+    "\x9f": False,  # APC
+}
+_C1_CSI = "\x9b"
 
 
 def _scrub_control_sequences(message: str) -> str:
@@ -300,17 +477,107 @@ def _scrub_control_sequences(message: str) -> str:
     if not message:
         return ""
 
-    without_ansi = _ANSI_ESCAPE_RE.sub("", message)
+    stripped_chars: list[str] = []
+    index = 0
+    length = len(message)
+
+    while index < length:
+        char = message[index]
+        if char == _ESC and index + 1 < length:
+            next_char = message[index + 1]
+            if next_char in _DELIMITED_ESCAPES:
+                index += 2
+                sequence_terminated = False
+                newline_break: int | None = None
+                while index < length:
+                    terminator = message[index]
+                    if terminator == _BEL:
+                        index += 1
+                        sequence_terminated = True
+                        break
+                    if (
+                        terminator == _ESC
+                        and index + 1 < length
+                        and message[index + 1] == "\\"
+                    ):
+                        index += 2
+                        sequence_terminated = True
+                        break
+                    if terminator in _LINE_TERMINATORS:
+                        newline_break = index
+                        break
+                    index += 1
+
+                if not sequence_terminated:
+                    if newline_break is not None:
+                        index = newline_break
+                    else:
+                        index = length
+                continue
+        elif char in _C1_STRING_STARTERS:
+            allow_bel = _C1_STRING_STARTERS[char]
+            index += 1
+            sequence_terminated = False
+            newline_break: int | None = None
+            while index < length:
+                terminator = message[index]
+                if terminator == _ST:
+                    index += 1
+                    sequence_terminated = True
+                    break
+                if allow_bel and terminator == _BEL:
+                    index += 1
+                    sequence_terminated = True
+                    break
+                if (
+                    terminator == _ESC
+                    and index + 1 < length
+                    and message[index + 1] == "\\"
+                ):
+                    index += 2
+                    sequence_terminated = True
+                    break
+                if terminator in _LINE_TERMINATORS:
+                    newline_break = index
+                    break
+                index += 1
+
+            if not sequence_terminated:
+                if newline_break is not None:
+                    index = newline_break
+                else:
+                    index = length
+            continue
+        elif char == _C1_CSI:
+            index += 1
+            while index < length:
+                terminator = message[index]
+                if 0x40 <= ord(terminator) <= 0x7E:
+                    index += 1
+                    break
+                index += 1
+            continue
+        stripped_chars.append(char)
+        index += 1
+
+    without_delimited = "".join(stripped_chars)
+    without_ansi = _ANSI_ESCAPE_RE.sub("", without_delimited)
     cleaned_chars = []
     for char in without_ansi:
         codepoint = ord(char)
-        if codepoint >= _PRINTABLE_THRESHOLD or codepoint in _ALLOWED_CONTROL_CODES:
+        if codepoint in _ALLOWED_CONTROL_CODES:
             cleaned_chars.append(char)
+            continue
+        if codepoint < _PRINTABLE_THRESHOLD:
+            continue
+        if 127 <= codepoint <= 159:
+            continue
+        cleaned_chars.append(char)
     return "".join(cleaned_chars)
 
 
 def _safe_output(
-    message: str = "",
+    message: str | bytes | bytearray | memoryview = "",
     *,
     target: str = "stdout",
     end: str = "\n",
@@ -318,8 +585,29 @@ def _safe_output(
 ) -> None:
     """Write output while suppressing BrokenPipeError/EPIPE issues."""
 
-    stream = sys.stdout if target == "stdout" else sys.stderr
-    text = _scrub_control_sequences(str(message))
+    if target == "stdout":
+        stream = sys.stdout
+    elif target == "stderr":
+        stream = sys.stderr
+    else:
+        raise ValueError(
+            f"Unknown output target '{target}'. Expected 'stdout' or 'stderr'."
+        )
+
+    if isinstance(message, str):
+        text_input = message
+    else:
+        try:
+            raw_bytes = bytes(message)
+        except (TypeError, ValueError):
+            text_input = str(message)
+        else:
+            try:
+                text_input = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                text_input = raw_bytes.decode("latin-1")
+
+    text = _scrub_control_sequences(text_input)
     try:
         print(text, end=end, file=stream, flush=flush)
     except BrokenPipeError:
@@ -835,29 +1123,34 @@ class UUTELCLI:
         self._safe_print("=" * 50)
         self._safe_print()
 
-        for engine, description in AVAILABLE_ENGINES.items():
+        for engine in sorted(AVAILABLE_ENGINES):
+            description = AVAILABLE_ENGINES[engine]
             self._safe_print(f"  {engine}")
             self._safe_print(f"    {description}")
         self._safe_print()
 
         self._safe_print("📝 Usage Examples:")
-        self._safe_print('  uutel complete --prompt "Write a sorter" --engine codex')
-        self._safe_print('  uutel complete --prompt "Say hello" --engine claude')
-        self._safe_print(
-            '  uutel complete --prompt "Summarise Gemini API" --engine gemini'
-        )
-        self._safe_print(
-            '  uutel complete --prompt "Deployment checklist" --engine cloud'
-        )
-        self._safe_print("  uutel test --engine codex")
-        self._safe_print("  uutel test --engine claude")
+        emitted_hints: set[str] = set()
+        canonical_aliases: dict[str, str] = {}
+        for fixture in basic_usage.RECORDED_FIXTURES:
+            hint = fixture.get("live_hint")
+            if not hint or hint in emitted_hints:
+                continue
+            self._safe_print(f"  {hint}")
+            emitted_hints.add(hint)
+            alias = fixture.get("engine")
+            canonical_target = ENGINE_ALIASES.get(alias)
+            if alias and canonical_target and canonical_target not in canonical_aliases:
+                canonical_aliases[canonical_target] = alias
+        for alias in canonical_aliases.values():
+            self._safe_print(f"  uutel test --engine {alias}")
         self._safe_print()
         self._safe_print("🔐 Provider Requirements:")
         for name, guidance in PROVIDER_REQUIREMENTS:
             self._safe_print(f"  {name}: {guidance}")
         self._safe_print()
         self._safe_print("Aliases:")
-        for alias, target in ENGINE_ALIASES.items():
+        for alias, target in sorted(ENGINE_ALIASES.items()):
             self._safe_print(f"  {alias} -> {target}")
 
     def test(
@@ -934,10 +1227,21 @@ class UUTELCLI:
         ready_count = 0
         issue_count = 0
 
+        alias_groups: dict[str, list[str]] = {}
+        engine_order: list[str] = []
+
         for alias, engine in ENGINE_ALIASES.items():
+            if engine not in alias_groups:
+                alias_groups[engine] = []
+                engine_order.append(engine)
+            alias_groups[engine].append(alias)
+
+        for engine in engine_order:
+            aliases = alias_groups[engine]
+            alias_display = ", ".join(aliases)
             ready, guidance = self._check_provider_readiness(engine)
             status_icon = "✅" if ready else "⚠️"
-            self._safe_print(f"{status_icon} {alias} ({engine})")
+            self._safe_print(f"{status_icon} {alias_display} ({engine})")
             if guidance:
                 for hint in guidance:
                     self._safe_print(f"   {hint}")

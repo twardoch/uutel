@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import pytest
+from examples import basic_usage
 
 from uutel.__main__ import validate_engine
 
@@ -45,4 +46,21 @@ def test_documented_engine_aliases_resolve(doc_path: Path) -> None:
     assert not failures, (
         f"Documentation in {doc_path.name} references invalid engines:\n"
         + "\n".join(failures)
+    )
+
+
+def test_readme_quick_usage_includes_recorded_hints() -> None:
+    """README quick usage section should surface every recorded live hint."""
+
+    readme_path = PROJECT_ROOT / "README.md"
+    text = readme_path.read_text(encoding="utf-8")
+
+    missing: list[str] = []
+    for fixture in basic_usage.RECORDED_FIXTURES:
+        hint = fixture["live_hint"]
+        if hint not in text:
+            missing.append(hint)
+
+    assert not missing, (
+        "README quick usage is missing recorded live hints: " + ", ".join(missing)
     )

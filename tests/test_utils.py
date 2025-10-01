@@ -145,6 +145,21 @@ class TestModelValidation:
         for model in prefixed_models:
             assert validate_model_name(model) is True
 
+    def test_validate_model_name_accepts_uutel_canonical_engines(self) -> None:
+        """Hyphenated UUTEL canonical models should validate successfully."""
+
+        canonical_models = [
+            "uutel-codex/gpt-4o",
+            "uutel-claude/claude-sonnet-4",
+            "uutel-gemini/gemini-2.5-pro",
+            "uutel-cloud/gemini-2.5-pro",
+        ]
+
+        for model in canonical_models:
+            assert validate_model_name(model) is True, (
+                f"Canonical engine '{model}' should be considered valid"
+            )
+
     def test_transform_messages_with_invalid_format(self) -> None:
         """Test transformation with invalid message formats."""
         invalid_messages = [

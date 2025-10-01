@@ -1,11 +1,16 @@
 # this_file: tests/test_codex_provider.py
 """Test suite for Codex provider functionality."""
 
+import asyncio
 import json
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
+from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 from litellm.types.utils import ModelResponse
 
@@ -15,11 +20,17 @@ from uutel.providers.codex.custom_llm import CodexCustomLLM
 
 
 class DummyStreamResponse:
-    """Synchronous mock response yielding pre-defined SSE lines."""
+    """Synchronous sample response yielding pre-defined SSE lines."""
 
-    def __init__(self, lines: list[str], status_code: int = 200) -> None:
+    def __init__(
+        self,
+        lines: list[str],
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self._lines = lines
         self.status_code = status_code
+        self.headers = headers or {}
 
     def __enter__(self) -> "DummyStreamResponse":
         return self
@@ -36,21 +47,37 @@ class DummyStreamResponse:
 class DummyClient:
     """Minimal HTTP client stub returning DummyStreamResponse."""
 
-    def __init__(self, lines: list[str]) -> None:
+    def __init__(
+        self,
+        lines: list[str],
+        *,
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self.lines = lines
         self.last_request: dict[str, Any] | None = None
+        self.status_code = status_code
+        self.headers = headers or {}
 
     def stream(self, method: str, url: str, **kwargs) -> DummyStreamResponse:
         self.last_request = {"method": method, "url": url, **kwargs}
-        return DummyStreamResponse(self.lines)
+        return DummyStreamResponse(
+            self.lines, status_code=self.status_code, headers=self.headers
+        )
 
 
 class AsyncDummyStreamResponse:
-    """Async mock response yielding SSE lines."""
+    """Async sample response yielding SSE lines."""
 
-    def __init__(self, lines: list[str], status_code: int = 200) -> None:
+    def __init__(
+        self,
+        lines: list[str],
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self._lines = lines
         self.status_code = status_code
+        self.headers = headers or {}
 
     async def __aenter__(self) -> "AsyncDummyStreamResponse":
         return self
@@ -66,13 +93,25 @@ class AsyncDummyStreamResponse:
 class AsyncDummyClient:
     """Minimal async HTTP client stub returning AsyncDummyStreamResponse."""
 
-    def __init__(self, lines: list[str]) -> None:
+    def __init__(
+        self,
+        lines: list[str],
+        *,
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self.lines = lines
         self.last_request: dict[str, Any] | None = None
+        self.status_code = status_code
+        self.headers = headers or {}
 
     def stream(self, method: str, url: str, **kwargs) -> AsyncDummyStreamResponse:
         self.last_request = {"method": method, "url": url, **kwargs}
-        return AsyncDummyStreamResponse(self.lines)
+        return AsyncDummyStreamResponse(
+            self.lines,
+            status_code=self.status_code,
+            headers=self.headers,
+        )
 
 
 @pytest.fixture
@@ -81,7 +120,7 @@ def codex_client_factory() -> Callable[..., tuple[Mock, dict]]:
 
     def _factory(
         *,
-        content: str = "Mock response from Codex",
+        content: str = "Codex sample completion output",
         finish_reason: str = "stop",
         usage: dict | None = None,
         tool_calls: list[dict] | None = None,
@@ -187,11 +226,75 @@ class TestCodexUUCompletion:
 
         assert result == model_response
         assert result.model == "gpt-4o"
-        assert "mock response" in result.choices[0].message.content.lower()
+        assert (
+            "codex sample completion output"
+            in result.choices[0].message.content.lower()
+        )
         assert result.choices[0].finish_reason == "stop"
         assert captured["url"] == "https://api.example.com/chat/completions"
         assert captured["json"]["messages"][0]["content"] == "Hello"
         client.close.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("status", "expected_substrings", "headers"),
+        [
+            (
+                403,
+                ["forbidden", "codex login"],
+                {},
+            ),
+            (
+                429,
+                ["rate limit", "retry after 12s"],
+                {"Retry-After": "12"},
+            ),
+            (
+                503,
+                ["service unavailable", "try again"],
+                {},
+            ),
+        ],
+    )
+    def test_completion_http_errors_emit_guidance(
+        self,
+        status: int,
+        expected_substrings: list[str],
+        headers: dict[str, str],
+    ) -> None:
+        """HTTP failures should raise UUTELError with actionable guidance."""
+
+        codex = CodexUU()
+        model_response = ModelResponse()
+        model_response.choices = [Mock()]
+        model_response.choices[0].message = Mock()
+
+        request = httpx.Request("POST", "https://api.example.com/chat/completions")
+        response = httpx.Response(status, request=request, headers=headers)
+        http_error = httpx.HTTPStatusError(
+            "failure", request=request, response=response
+        )
+
+        client = Mock()
+        client.post.side_effect = http_error
+
+        with pytest.raises(UUTELError) as excinfo:
+            codex.completion(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": "Hello"}],
+                api_base="https://api.example.com",
+                custom_prompt_dict={},
+                model_response=model_response,
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key="test-key",
+                logging_obj=Mock(),
+                optional_params={},
+                client=client,
+            )
+
+        message = str(excinfo.value).lower()
+        for expected in expected_substrings:
+            assert expected in message
 
     def test_completion_translates_tool_calls(
         self, codex_client_factory: Callable[..., tuple[Mock, dict]]
@@ -272,6 +375,52 @@ class TestCodexUUCompletion:
 
         assert "Messages are required" in str(exc_info.value)
 
+    def test_completion_returns_credential_guidance_on_401(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex completion should surface actionable guidance on HTTP 401."""
+
+        codex = CodexUU()
+        monkeypatch.setattr(codex, "_load_codex_auth", lambda: ("token", "account"))
+
+        request = httpx.Request(
+            "POST", "https://chatgpt.com/backend-api/codex/responses"
+        )
+        response = httpx.Response(401, request=request)
+        http_error = httpx.HTTPStatusError(
+            "Unauthorized", request=request, response=response
+        )
+
+        failing_response = Mock()
+        failing_response.raise_for_status.side_effect = http_error
+
+        client = Mock()
+        client.post.return_value = failing_response
+
+        model_response = ModelResponse()
+        model_response.choices = [Mock()]
+        model_response.choices[0].message = Mock()
+
+        with pytest.raises(UUTELError) as exc_info:
+            codex.completion(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": "Hello"}],
+                api_base="https://chatgpt.com/backend-api",
+                custom_prompt_dict={},
+                model_response=model_response,
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key=None,
+                logging_obj=Mock(),
+                optional_params={},
+                client=client,
+            )
+
+        message = str(exc_info.value).lower()
+        assert "codex credentials" in message
+        assert "codex login" in message
+        assert exc_info.value.provider == "codex"
+
     def test_completion_error_handling(
         self, codex_client_factory: Callable[..., tuple[Mock, dict]]
     ) -> None:
@@ -300,25 +449,83 @@ class TestCodexUUCompletion:
 
         assert "Codex completion failed" in str(exc_info.value)
 
-
-class TestCodexUUAsyncCompletion:
-    """Test CodexUU async completion functionality."""
-
-    def test_acompletion_basic_functionality(
+    def test_completion_with_api_key_uses_openai_payload(
         self, codex_client_factory: Callable[..., tuple[Mock, dict]]
     ) -> None:
-        """Test basic async completion functionality."""
-        # For now, test that acompletion is callable and returns expected result
-        # In a full implementation, this would be properly async
-        import asyncio
+        """Supplying an API key should target OpenAI chat completions endpoint."""
 
         codex = CodexUU()
         model_response = ModelResponse()
         model_response.choices = [Mock()]
         model_response.choices[0].message = Mock()
-        client, captured = codex_client_factory(content="Async mock response")
 
-        async def run_test():
+        client, captured = codex_client_factory()
+
+        codex.completion(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "Hello"}],
+            api_base="https://api.openai.com/v1",
+            custom_prompt_dict={},
+            model_response=model_response,
+            print_verbose=Mock(),
+            encoding="utf-8",
+            api_key="test-key",
+            logging_obj=Mock(),
+            optional_params={"temperature": 0.35, "max_tokens": 128},
+            client=client,
+        )
+
+        assert captured["url"] == "https://api.openai.com/v1/chat/completions", (
+            "Expected OpenAI endpoint when API key supplied"
+        )
+        headers = captured["headers"]
+        assert headers["Authorization"] == "Bearer test-key"
+        assert headers["Content-Type"] == "application/json"
+        payload = captured["json"]
+        assert payload["model"] == "gpt-4o"
+        assert payload["messages"][0]["content"] == "Hello"
+        assert payload["temperature"] == 0.35
+        assert payload["max_tokens"] == 128
+
+
+class TestCodexUUAsyncCompletion:
+    """Test CodexUU async completion functionality."""
+
+    def test_acompletion_basic_functionality(self) -> None:
+        """Async completion should await an async client rather than sync fallback."""
+        import asyncio
+
+        codex = CodexUU()
+        codex.completion = Mock(
+            side_effect=AssertionError("Sync completion must not run")
+        )
+
+        model_response = ModelResponse()
+        model_response.choices = [Mock()]
+        model_response.choices[0].message = Mock()
+
+        response_payload = {
+            "choices": [
+                {
+                    "message": {"content": "Async sample completion output"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 12,
+                "completion_tokens": 20,
+                "total_tokens": 32,
+            },
+        }
+
+        http_response = Mock()
+        http_response.raise_for_status.return_value = None
+        http_response.json.return_value = response_payload
+
+        client = AsyncMock()
+        client.post.return_value = http_response
+
+        async def run_test() -> ModelResponse:
             return await codex.acompletion(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": "Hello"}],
@@ -334,10 +541,63 @@ class TestCodexUUAsyncCompletion:
             )
 
         result = asyncio.run(run_test())
-        assert result == model_response
+
+        assert result is model_response
         assert result.model == "gpt-4o"
-        assert "async mock response" in result.choices[0].message.content.lower()
-        assert captured["json"]["model"] == "gpt-4o"
+        assert (
+            "async sample completion output"
+            in result.choices[0].message.content.lower()
+        )
+
+        client.post.assert_awaited_once()
+        await_args = client.post.await_args
+        assert await_args.args[0] == "https://api.example.com/chat/completions"
+        assert await_args.kwargs["json"]["model"] == "gpt-4o"
+
+    def test_acompletion_returns_credential_guidance_on_401(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Async completion should raise actionable guidance on HTTP 401."""
+
+        codex = CodexUU()
+        monkeypatch.setattr(codex, "_load_codex_auth", lambda: ("token", "account"))
+
+        request = httpx.Request(
+            "POST", "https://chatgpt.com/backend-api/codex/responses"
+        )
+        response = httpx.Response(401, request=request)
+        http_error = httpx.HTTPStatusError(
+            "Unauthorized", request=request, response=response
+        )
+
+        failing_response = Mock()
+        failing_response.raise_for_status.side_effect = http_error
+
+        client = AsyncMock()
+        client.post.return_value = failing_response
+
+        async def run() -> ModelResponse:
+            return await codex.acompletion(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": "Hello"}],
+                api_base="https://chatgpt.com/backend-api",
+                custom_prompt_dict={},
+                model_response=ModelResponse(),
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key=None,
+                logging_obj=Mock(),
+                optional_params={},
+                client=client,
+            )
+
+        with pytest.raises(UUTELError) as exc_info:
+            asyncio.run(run())
+
+        message = str(exc_info.value).lower()
+        assert "codex credentials" in message
+        assert "codex login" in message
+        assert exc_info.value.provider == "codex"
 
 
 class TestCodexUUStreaming:
@@ -426,6 +686,115 @@ class TestCodexUUStreaming:
 
         tool_chunk = next(chunk for chunk in chunks if chunk["tool_use"] is not None)
         assert tool_chunk["tool_use"]["id"] == "item_1"
+        assert tool_chunk["tool_use"]["name"] == "search"
+        assert json.loads(tool_chunk["tool_use"]["arguments"]) == {"query": "docs"}
+
+    def test_streaming_status_error_maps_to_guidance(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Streaming failures should reuse HTTP guidance messaging."""
+
+        codex = CodexUU()
+        monkeypatch.setattr(codex, "_load_codex_auth", lambda: ("token", "account"))
+
+        client = DummyClient([], status_code=429, headers={"retry-after": "10"})
+
+        with pytest.raises(UUTELError) as excinfo:
+            list(
+                codex.streaming(
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    api_base="https://chatgpt.com/backend-api",
+                    custom_prompt_dict={},
+                    model_response=ModelResponse(),
+                    print_verbose=Mock(),
+                    encoding="utf-8",
+                    api_key=None,
+                    logging_obj=Mock(),
+                    optional_params={},
+                    client=client,
+                )
+            )
+
+        message = str(excinfo.value).lower()
+        assert "rate limit" in message
+        assert "retry after 10s" in message
+        assert excinfo.value.provider == "codex"
+
+    def test_parse_retry_after_supports_http_date_header(self) -> None:
+        """HTTP-date retry headers should convert into second deltas."""
+
+        codex = CodexUU()
+        future = datetime.now(timezone.utc) + timedelta(seconds=42)
+        header_value = format_datetime(future)
+
+        result = codex._parse_retry_after({"retry-after": header_value})
+
+        assert result is not None, "HTTP-date retry header should return seconds"
+        assert 40 <= result <= 42, "Parsed retry seconds should approximate 42s"
+
+    def test_format_status_guidance_includes_seconds_for_http_date(self) -> None:
+        """Guidance message should embed parsed seconds from HTTP-date headers."""
+
+        codex = CodexUU()
+        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        header_value = format_datetime(future)
+
+        seconds = codex._parse_retry_after({"retry-after": header_value})
+
+        message = codex._format_status_guidance(
+            status=429,
+            headers={"retry-after": header_value},
+            fallback="rate limit",
+        ).lower()
+
+        assert seconds is not None, "Retry-after parsing should produce integer seconds"
+        assert f"retry after {seconds}s" in message
+
+    def test_streaming_handles_name_and_tool_argument_deltas(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex streaming should capture name/argument deltas for tool calls."""
+
+        codex = CodexUU()
+        monkeypatch.setattr(codex, "_load_codex_auth", lambda: ("token", "account"))
+
+        lines = [
+            'data: {"type": "response.output_item.added", "item": {"type": "function_call", "id": "item_42"}}',
+            "",
+            'data: {"type": "response.function_call_name.delta", "item_id": "item_42", "delta": "search"}',
+            "",
+            'data: {"type": "response.tool_call_arguments.delta", "item_id": "item_42", "delta": "{\\"query\\": "}',
+            "",
+            'data: {"type": "response.tool_call_arguments.delta", "item_id": "item_42", "delta": "\\"docs\\"}"}',
+            "",
+            'data: {"type": "response.function_call_arguments.done", "item_id": "item_42"}',
+            "",
+            'data: {"type": "response.completed", "response": {"status": "stop"}}',
+            "",
+            "data: [DONE]",
+            "",
+        ]
+
+        client = DummyClient(lines)
+        chunks = list(
+            codex.streaming(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": "Hello"}],
+                api_base="https://chatgpt.com/backend-api",
+                custom_prompt_dict={},
+                model_response=ModelResponse(),
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key=None,
+                logging_obj=Mock(),
+                optional_params={},
+                client=client,
+            )
+        )
+
+        tool_chunk = next(chunk for chunk in chunks if chunk["tool_use"] is not None)
+        assert tool_chunk["tool_use"]["id"] == "item_42"
         assert tool_chunk["tool_use"]["name"] == "search"
         assert json.loads(tool_chunk["tool_use"]["arguments"]) == {"query": "docs"}
 
@@ -589,7 +958,7 @@ class TestCodexUUEdgeCases:
             {"role": "user", "content": "How are you?"},
         ]
 
-        client, captured = codex_client_factory(content="Structured mock response")
+        client, captured = codex_client_factory(content="Structured sample completion")
 
         result = codex.completion(
             model="gpt-4o",
@@ -607,7 +976,9 @@ class TestCodexUUEdgeCases:
 
         assert result == model_response
         assert captured["json"]["messages"] == complex_messages
-        assert "structured mock response" in result.choices[0].message.content.lower()
+        assert (
+            "structured sample completion" in result.choices[0].message.content.lower()
+        )
 
     def test_completion_with_optional_params(
         self, codex_client_factory: Callable[..., tuple[Mock, dict]]
@@ -706,58 +1077,126 @@ class TestCodexCustomLLMDelegation:
         assert list(iterator) == [{"text": "chunk"}]
         provider_instance.streaming.assert_called_once()
 
-    @pytest.mark.asyncio
     @patch("uutel.providers.codex.custom_llm.CodexUU")
-    async def test_async_completion_delegates_to_provider(
-        self, mock_codex_uu: Mock
-    ) -> None:
+    def test_async_completion_delegates_to_provider(self, mock_codex_uu: Mock) -> None:
         provider_instance = mock_codex_uu.return_value
         expected_response = self._minimal_model_response()
-        provider_instance.acompletion.return_value = expected_response
+        provider_instance.acompletion = AsyncMock(return_value=expected_response)
 
         custom_llm = CodexCustomLLM()
-        result = await custom_llm.acompletion(
-            model="uutel-codex/gpt-4o",
-            messages=[{"role": "user", "content": "Hi"}],
-            api_base="",
-            custom_prompt_dict={},
-            model_response=self._minimal_model_response(),
-            print_verbose=Mock(),
-            encoding="utf-8",
-            api_key="api-key",
-            logging_obj=Mock(),
-            optional_params={},
-        )
+
+        async def _run() -> ModelResponse:
+            return await custom_llm.acompletion(
+                model="uutel-codex/gpt-4o",
+                messages=[{"role": "user", "content": "Hi"}],
+                api_base="",
+                custom_prompt_dict={},
+                model_response=self._minimal_model_response(),
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key="api-key",
+                logging_obj=Mock(),
+                optional_params={},
+            )
+
+        result = asyncio.run(_run())
 
         provider_instance.acompletion.assert_called_once()
         assert result is expected_response
 
-    @pytest.mark.asyncio
     @patch("uutel.providers.codex.custom_llm.CodexUU")
-    async def test_async_streaming_delegates_to_provider(
-        self, mock_codex_uu: Mock
-    ) -> None:
+    def test_async_streaming_delegates_to_provider(self, mock_codex_uu: Mock) -> None:
         async def _agen():
             yield {"text": "async"}
 
         provider_instance = mock_codex_uu.return_value
-        provider_instance.astreaming.return_value = _agen()
+        provider_instance.astreaming = Mock(return_value=_agen())
 
         custom_llm = CodexCustomLLM()
-        result = []
-        async for chunk in custom_llm.astreaming(
-            model="uutel-codex/gpt-4o",
-            messages=[{"role": "user", "content": "Hi"}],
-            api_base="",
-            custom_prompt_dict={},
-            model_response=self._minimal_model_response(),
-            print_verbose=Mock(),
-            encoding="utf-8",
-            api_key="api-key",
-            logging_obj=Mock(),
-            optional_params={},
-        ):
-            result.append(chunk)
+
+        async def _collect() -> list[dict[str, str]]:
+            chunks: list[dict[str, str]] = []
+            async for chunk in custom_llm.astreaming(
+                model="uutel-codex/gpt-4o",
+                messages=[{"role": "user", "content": "Hi"}],
+                api_base="",
+                custom_prompt_dict={},
+                model_response=self._minimal_model_response(),
+                print_verbose=Mock(),
+                encoding="utf-8",
+                api_key="api-key",
+                logging_obj=Mock(),
+                optional_params={},
+            ):
+                chunks.append(chunk)
+            return chunks
+
+        result = asyncio.run(_collect())
 
         provider_instance.astreaming.assert_called_once()
         assert result == [{"text": "async"}]
+
+
+class TestCodexAuthLoader:
+    """Unit tests for Codex auth file parsing."""
+
+    def setup_method(self) -> None:
+        self.provider = CodexUU()
+
+    def _create_auth_file(self, tmp_path: Path, payload: dict[str, object]) -> None:
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "auth.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_load_codex_auth_supports_nested_tokens_structure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legacy auth layout in tokens{} should be accepted."""
+
+        payload = {
+            "tokens": {
+                "access_token": "legacy-access",
+                "account_id": "acct-123",
+            }
+        }
+        self._create_auth_file(tmp_path, payload)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        access_token, account_id = self.provider._load_codex_auth()
+
+        assert access_token == "legacy-access"
+        assert account_id == "acct-123"
+
+    def test_load_codex_auth_supports_flat_structure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Modern auth layout with top-level tokens should be accepted."""
+
+        payload = {
+            "access_token": "flat-access",
+            "refresh_token": "refresh-token",
+            "workspace_id": "workspace-456",
+        }
+        self._create_auth_file(tmp_path, payload)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        access_token, account_id = self.provider._load_codex_auth()
+
+        assert access_token == "flat-access"
+        assert account_id == "workspace-456"
+
+    def test_load_codex_auth_raises_when_access_token_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing access token should raise a UUTELError with guidance."""
+
+        payload = {"workspace_id": "workspace-789"}
+        self._create_auth_file(tmp_path, payload)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        with pytest.raises(UUTELError) as exc:
+            self.provider._load_codex_auth()
+
+        message = str(exc.value)
+        assert "access token" in message.lower()
+        assert exc.value.provider == "codex"

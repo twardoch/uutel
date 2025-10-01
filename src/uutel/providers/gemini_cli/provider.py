@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import re
+import uuid
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,10 @@ from uutel.core.utils import (
 )
 
 logger = get_logger(__name__)
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_OSC_ESCAPE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+_CLI_JSON_TRAIL_BYTES = 32768
 
 _GEMINI_ENV_VARS = (
     "GOOGLE_API_KEY",
@@ -350,13 +356,7 @@ class GeminiCLIUU(BaseUU):
                 "Gemini CLI returned empty output",
                 provider=self.provider_name,
             )
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError as exc:
-            raise UUTELError(
-                "Gemini CLI returned invalid JSON output",
-                provider=self.provider_name,
-            ) from exc
+        payload = self._extract_cli_completion_payload(stdout)
         return self._normalise_response(payload)
 
     def _stream_via_cli(
@@ -374,19 +374,33 @@ class GeminiCLIUU(BaseUU):
             optional_params=optional_params,
             stream=True,
         )
-        lines = list(
-            stream_subprocess_lines(
-                command,
-                timeout=timeout or _DEFAULT_TIMEOUT,
-                env=self._build_cli_env(credentials),
-            )
-        )
+        lines: list[str] = []
+        for raw_line in stream_subprocess_lines(
+            command,
+            timeout=timeout or _DEFAULT_TIMEOUT,
+            env=self._build_cli_env(credentials),
+        ):
+            text_line = raw_line.rstrip("\r\n") if isinstance(raw_line, str) else ""
+            if text_line:
+                lines.append(self._strip_ansi_sequences(text_line))
+
         if not lines:
             raise UUTELError(
                 "Gemini CLI streaming returned no output",
                 provider=self.provider_name,
             )
-        yield create_text_chunk("\n".join(lines), index=0, finished=True)
+        self._raise_if_cli_error(lines)
+        parsed_chunks = self._parse_cli_stream_lines(lines)
+        if parsed_chunks:
+            yield from parsed_chunks
+            return
+
+        for index, line in enumerate(lines):
+            yield create_text_chunk(
+                line,
+                index=index,
+                finished=index == len(lines) - 1,
+            )
 
     # ------------------------------------------------------------------
     # Shared helpers
@@ -402,8 +416,11 @@ class GeminiCLIUU(BaseUU):
 
         for env_var in _GEMINI_ENV_VARS:
             value = environ.get(env_var)
-            if value:
-                return value
+            if value is None:
+                continue
+            stripped = value.strip()
+            if stripped:
+                return stripped
         return None
 
     def _import_genai(self):
@@ -465,6 +482,171 @@ class GeminiCLIUU(BaseUU):
                 and "configure" in cell_value
             ):
                 return cell_value
+        return None
+
+    def _raise_if_cli_error(self, lines: list[str]) -> None:
+        """Raise a `UUTELError` when CLI output encodes an error payload."""
+
+        joined = "\n".join(lines).strip()
+        if not joined.startswith("{") or '"error"' not in joined:
+            return
+
+        try:
+            payload = json.loads(joined)
+        except json.JSONDecodeError:
+            return
+
+        if not isinstance(payload, dict):
+            return
+
+        error_block = payload.get("error")
+        if not isinstance(error_block, dict):
+            return
+
+        code = error_block.get("code")
+        status = error_block.get("status")
+        message = error_block.get("message") or "Gemini CLI reported an error"
+
+        descriptor_parts = [
+            str(code) if code is not None else None,
+            status,
+        ]
+        descriptor = " ".join(part for part in descriptor_parts if part)
+        if descriptor:
+            humanised = f"Gemini CLI error ({descriptor}): {message}"
+        else:
+            humanised = f"Gemini CLI error: {message}"
+
+        guidance = " Run 'gemini login' or set GOOGLE_API_KEY to refresh credentials."
+        raise UUTELError(humanised + guidance, provider=self.provider_name)
+
+    def _extract_cli_completion_payload(self, stdout: str) -> dict[str, Any]:
+        """Extract the final JSON object from CLI stdout."""
+
+        cleaned = self._strip_ansi_sequences(stdout)
+        trimmed = (
+            cleaned[-_CLI_JSON_TRAIL_BYTES:]
+            if len(cleaned) > _CLI_JSON_TRAIL_BYTES
+            else cleaned
+        )
+
+        decoder = json.JSONDecoder()
+        payload: dict[str, Any] | None = None
+        index = 0
+        while index < len(trimmed):
+            char = trimmed[index]
+            if char not in "{[":
+                index += 1
+                continue
+            try:
+                obj, end = decoder.raw_decode(trimmed, index)
+            except json.JSONDecodeError:
+                index += 1
+                continue
+            if isinstance(obj, dict):
+                payload = obj
+            index = end
+
+        if payload is None:
+            raise UUTELError(
+                "Gemini CLI returned invalid JSON output",
+                provider=self.provider_name,
+            )
+        return payload
+
+    def _strip_ansi_sequences(self, text: str) -> str:
+        """Remove ANSI/OSC escape sequences and control characters from CLI output."""
+
+        cleaned = _ANSI_ESCAPE_RE.sub("", text)
+        cleaned = _OSC_ESCAPE_RE.sub("", cleaned)
+        cleaned = cleaned.replace("\r", "")
+        return cleaned.replace("\x07", "")
+
+    def _parse_cli_stream_lines(self, lines: list[str]) -> list[GenericStreamingChunk]:
+        """Convert CLI JSONL payloads into GenericStreamingChunk objects."""
+
+        chunks: list[GenericStreamingChunk] = []
+        index = 0
+        finish_emitted = False
+
+        for line in lines:
+            parsed = self._decode_cli_stream_line(line)
+            if parsed is None:
+                continue
+
+            text = parsed.get("text")
+            finish_reason = parsed.get("finish_reason")
+
+            if text:
+                chunks.append(create_text_chunk(text, index=index, finished=False))
+                index += 1
+
+            if finish_reason:
+                chunks.append(
+                    create_text_chunk(
+                        "",
+                        index=index,
+                        finished=True,
+                        finish_reason=finish_reason,
+                    )
+                )
+                finish_emitted = True
+                index += 1
+
+        if chunks and not finish_emitted:
+            chunks[-1]["is_finished"] = True
+            chunks[-1]["finish_reason"] = chunks[-1].get("finish_reason") or "stop"
+
+        return chunks
+
+    def _decode_cli_stream_line(self, line: str) -> dict[str, str] | None:
+        """Interpret a single CLI streaming line as text or finish event."""
+
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+
+        if not isinstance(payload, dict):
+            return None
+
+        structures: list[dict[str, Any]] = [payload]
+        data = payload.get("data")
+        if isinstance(data, dict):
+            structures.append(data)
+
+        event_type = payload.get("type") or payload.get("event")
+
+        for block in structures:
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type") or event_type
+
+            if block_type == "text-delta":
+                text = block.get("text")
+                if isinstance(text, str) and text:
+                    return {"text": text}
+                text_delta = block.get("textDelta") or block.get("text_delta")
+                if isinstance(text_delta, dict):
+                    delta_text = text_delta.get("text")
+                    if isinstance(delta_text, str) and delta_text:
+                        return {"text": delta_text}
+
+            if block_type == "finish":
+                reason = block.get("reason") or block.get("finishReason")
+                if isinstance(reason, str) and reason.strip():
+                    return {"finish_reason": reason.strip().lower()}
+                return {"finish_reason": "stop"}
+
+            text_value = block.get("text")
+            if isinstance(text_value, str) and text_value:
+                return {"text": text_value}
+
+            finish = block.get("finishReason")
+            if isinstance(finish, str) and finish.strip():
+                return {"finish_reason": finish.strip().lower()}
+
         return None
 
     def _convert_message_part(self, part: Any) -> dict[str, Any] | None:
@@ -555,22 +737,136 @@ class GeminiCLIUU(BaseUU):
         candidates = payload.get("candidates") or []
         text = ""
         finish_reason: str | None = None
-        if candidates:
-            candidate = candidates[0]
-            normalised_finish = self._normalise_finish(candidate.get("finishReason"))
-            if normalised_finish is not None:
-                finish_reason = normalised_finish
-            content = candidate.get("content", {})
-            parts = content.get("parts", []) if isinstance(content, dict) else []
-            text = "".join(
-                part.get("text", "") for part in parts if isinstance(part, dict)
+        tool_calls: list[dict[str, Any]] = []
+
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            if finish_reason is None:
+                finish_reason = self._normalise_finish(candidate.get("finishReason"))
+            candidate_content = candidate.get("content", {})
+            parts = (
+                candidate_content.get("parts", [])
+                if isinstance(candidate_content, dict)
+                else []
             )
+            candidate_text, candidate_tools = self._extract_text_and_tools(parts)
+            if candidate_tools:
+                tool_calls.extend(candidate_tools)
+            if candidate_text:
+                text = candidate_text
+                candidate_finish = self._normalise_finish(candidate.get("finishReason"))
+                if candidate_finish is not None:
+                    finish_reason = candidate_finish
+                break
+
         usage = self._normalise_usage(payload.get("usageMetadata"))
+        if usage:
+            total = usage.get("total_tokens")
+            prompt = usage.get("prompt_tokens")
+            completion = usage.get("completion_tokens")
+            if (
+                (not isinstance(total, int) or total <= 0)
+                and isinstance(prompt, int)
+                and prompt >= 0
+                and isinstance(completion, int)
+                and completion >= 0
+            ):
+                usage["total_tokens"] = prompt + completion
+
         return {
             "content": text,
             "finish_reason": finish_reason,
             "usage": usage,
-            "tool_calls": [],
+            "tool_calls": tool_calls,
+        }
+
+    def _extract_text_and_tools(
+        self, parts: list[Any]
+    ) -> tuple[str, list[dict[str, Any]]]:
+        texts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+
+        for part in parts:
+            if isinstance(part, dict):
+                function_call = part.get("functionCall") or part.get("function_call")
+                if isinstance(function_call, dict):
+                    tool_call = self._convert_function_call(function_call)
+                    if tool_call:
+                        tool_calls.append(tool_call)
+                    continue
+                text_value = part.get("text")
+                if isinstance(text_value, str) and text_value.strip():
+                    texts.append(text_value)
+                else:
+                    if "content" in part:
+                        self._flatten_text_segments(part.get("content"), texts)
+                    if "parts" in part:
+                        self._flatten_text_segments(part.get("parts"), texts)
+            elif isinstance(part, str):
+                if part.strip():
+                    texts.append(part)
+            elif isinstance(part, list):
+                self._flatten_text_segments(part, texts)
+
+        combined = "".join(texts)
+        return (combined if combined.strip() else "", tool_calls)
+
+    def _flatten_text_segments(self, node: Any, dest: list[str]) -> None:
+        if node is None:
+            return
+        if isinstance(node, str):
+            if node.strip():
+                dest.append(node)
+            return
+        if isinstance(node, int | float):
+            dest.append(str(node))
+            return
+        if isinstance(node, list):
+            for item in node:
+                self._flatten_text_segments(item, dest)
+            return
+        if isinstance(node, dict):
+            if any(key in node for key in ("functionCall", "function_call")):
+                return
+            text_value = node.get("text")
+            if isinstance(text_value, str) and text_value.strip():
+                dest.append(text_value)
+            else:
+                processed = False
+                if "content" in node:
+                    self._flatten_text_segments(node.get("content"), dest)
+                    processed = True
+                if "parts" in node:
+                    self._flatten_text_segments(node.get("parts"), dest)
+                    processed = True
+                if not processed:
+                    for value in node.values():
+                        self._flatten_text_segments(value, dest)
+
+    def _convert_function_call(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        name = payload.get("name") or payload.get("function_name")
+        if not isinstance(name, str) or not name.strip():
+            return None
+
+        args = payload.get("args")
+        if args is None:
+            args = payload.get("arguments")
+        if isinstance(args, str) and args.strip():
+            arguments = args
+        else:
+            try:
+                arguments = json.dumps(args or {})
+            except TypeError:
+                arguments = json.dumps({})
+
+        return {
+            "id": f"tool_{uuid.uuid4().hex}",
+            "type": "function",
+            "function": {
+                "name": name.strip(),
+                "arguments": arguments,
+            },
         }
 
     def _coerce_response_to_dict(self, response: Any) -> dict[str, Any]:
@@ -686,7 +982,12 @@ class GeminiCLIUU(BaseUU):
 
     def _build_cli_env(self, credentials: dict[str, Any]) -> dict[str, str]:
         token = credentials.get("access_token")
-        return {"GOOGLE_API_KEY": token} if token else {}
+        if token is None:
+            return {}
+        trimmed = token.strip() if isinstance(token, str) else str(token).strip()
+        if not trimmed:
+            return {}
+        return dict.fromkeys(_GEMINI_ENV_VARS, trimmed)
 
     def _check_gemini_cli(self) -> bool:
         from shutil import which

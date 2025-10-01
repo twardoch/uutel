@@ -113,8 +113,11 @@ class CloudCodeUU(BaseUU):
 
         for env_var in _API_KEY_ENV_VARS:
             value = os.getenv(env_var)
-            if value:
-                return value
+            if value is None:
+                continue
+            stripped = value.strip()
+            if stripped:
+                return stripped
         return None
 
     def _resolve_project_id(self, optional_params: dict[str, Any]) -> str:
@@ -126,10 +129,16 @@ class CloudCodeUU(BaseUU):
                 return value.strip()
         for env_var in _PROJECT_ENV_VARS:
             value = os.getenv(env_var)
-            if value:
-                return value
+            if value is None:
+                continue
+            stripped = value.strip()
+            if stripped:
+                return stripped
         raise UUTELError(
-            "Google Cloud project ID required. Set project_id param or CLOUD_CODE_PROJECT env var.",
+            (
+                "Google Cloud project ID required. Set project_id parameter or export CLOUD_CODE_PROJECT. "
+                "Tip: run 'gcloud config set project <id>' or set CLOUD_CODE_PROJECT before retrying."
+            ),
             provider=self.provider_name,
         )
 

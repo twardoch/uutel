@@ -12,7 +12,9 @@ from unittest.mock import Mock
 import pytest
 from litellm.types.utils import ModelResponse
 
+from uutel.core.exceptions import UUTELError
 from uutel.providers.cloud_code import CloudCodeUU
+from uutel.providers.cloud_code.provider import _API_KEY_ENV_VARS, _PROJECT_ENV_VARS
 
 FIXTURE_PATH = (
     Path(__file__).parent
@@ -121,6 +123,34 @@ def cloud_code_payload() -> dict[str, Any]:
     return _load_fixture()
 
 
+def test_get_api_key_returns_none_for_blank_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whitespace-only API key env vars should not be treated as configured."""
+
+    provider = CloudCodeUU()
+    for env_var in _API_KEY_ENV_VARS:
+        monkeypatch.delenv(env_var, raising=False)
+        monkeypatch.setenv(env_var, "   ")
+
+    assert provider._get_api_key() is None, (
+        "Blank env vars should be ignored when resolving API key"
+    )
+
+
+def test_get_api_key_strips_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leading/trailing whitespace should be removed from detected API keys."""
+
+    provider = CloudCodeUU()
+    for env_var in _API_KEY_ENV_VARS:
+        monkeypatch.delenv(env_var, raising=False)
+    monkeypatch.setenv("GOOGLE_GENAI_API_KEY", "  secret-key \n")
+
+    assert provider._get_api_key() == "secret-key", (
+        "API key resolution should trim surrounding whitespace"
+    )
+
+
 def test_completion_when_api_key_provided_then_posts_internal_endpoint(
     cloud_code_payload: dict[str, Any],
 ) -> None:
@@ -199,7 +229,7 @@ def test_completion_when_api_key_provided_then_posts_internal_endpoint(
         "Completion should populate content"
     )
     assert result.choices[0].finish_reason == "stop", "Finish reason should be stop"
-    assert result.usage["total_tokens"] == 135, "Usage totals should map from payload"
+    assert result.usage["total_tokens"] == 120, "Usage totals should map from payload"
 
 
 def test_completion_when_oauth_credentials_used_then_authorization_header_set(
@@ -322,3 +352,42 @@ def test_streaming_when_sse_chunks_returned_then_text_chunks_emitted() -> None:
     assert chunks[1]["text"].strip() == "world", "Second chunk text mismatch"
     assert chunks[1]["is_finished"], "Second chunk should flag completion"
     assert chunks[1]["usage"]["total_tokens"] == 200, "Streaming usage not propagated"
+
+
+def test_resolve_project_id_trims_optional_parameter() -> None:
+    provider = CloudCodeUU()
+
+    project = provider._resolve_project_id({"project_id": "  example-123  "})
+
+    assert project == "example-123"
+
+
+def test_resolve_project_id_prefers_environment_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = CloudCodeUU()
+
+    for env_var in _PROJECT_ENV_VARS:
+        monkeypatch.delenv(env_var, raising=False)
+
+    monkeypatch.setenv("CLOUD_CODE_PROJECT", "  env-project  ")
+
+    project = provider._resolve_project_id({})
+
+    assert project == "env-project"
+
+
+def test_resolve_project_id_raises_with_guidance_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = CloudCodeUU()
+
+    for env_var in _PROJECT_ENV_VARS:
+        monkeypatch.delenv(env_var, raising=False)
+
+    with pytest.raises(UUTELError) as exc:
+        provider._resolve_project_id({})
+
+    message = str(exc.value)
+    assert "CLOUD_CODE_PROJECT" in message
+    assert "project id" in message.lower()

@@ -6,24 +6,36 @@
           "role": "MODEL",
           "parts": [
             {
-              "text": "Here is a short deployment checklist you can add to your project README: run automated tests, review infrastructure changes, verify environment variables, and monitor the rollout."
+              "text": "Before deploying, verify `gcloud auth application-default print-access-token` succeeds for the active project, confirm `CLOUD_CODE_PROJECT`, run integration tests, snapshot your Terraform state, and monitor metrics throughout the rollout."
             }
           ]
         },
         "finishReason": "STOP",
         "safetyRatings": [
-          { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "probability": "NEGLIGIBLE" },
-          { "category": "HARM_CATEGORY_HARASSMENT", "probability": "NEGLIGIBLE" },
-          { "category": "HARM_CATEGORY_HATE_SPEECH", "probability": "NEGLIGIBLE" },
-          { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "probability": "NEGLIGIBLE" }
+          {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "probability": "NEGLIGIBLE"
+          },
+          {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "probability": "NEGLIGIBLE"
+          },
+          {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "probability": "NEGLIGIBLE"
+          },
+          {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "probability": "NEGLIGIBLE"
+          }
         ],
         "index": 0
       }
     ],
     "usageMetadata": {
-      "promptTokenCount": 38,
-      "candidatesTokenCount": 97,
-      "totalTokenCount": 135
+      "promptTokenCount": 32,
+      "candidatesTokenCount": 88,
+      "totalTokenCount": 120
     }
   }
 }

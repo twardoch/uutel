@@ -516,10 +516,23 @@ def validate_model_name(model: Any) -> bool:
             result = False
         elif "/" in model:
             parts = model.split("/", 2)
-            if len(parts) < 3 or parts[0] != "uutel":
-                result = False
+            if len(parts) == 2:
+                prefix, suffix = parts
+                if prefix.startswith("uutel-") or prefix == "my-custom-llm":
+                    result = bool(suffix) and bool(_MODEL_NAME_PATTERN.match(suffix))
+                else:
+                    result = False
+            elif len(parts) == 3:
+                root, provider, remainder = parts
+                if root == "uutel":
+                    result = all(
+                        part and _MODEL_NAME_PATTERN.match(part)
+                        for part in (provider, remainder)
+                    )
+                else:
+                    result = False
             else:
-                result = all(part and _MODEL_NAME_PATTERN.match(part) for part in parts)
+                result = False
         else:
             result = bool(_MODEL_NAME_PATTERN.match(model))
 

@@ -1,333 +1,452 @@
 #!/usr/bin/env python3
 # this_file: examples/basic_usage.py
-"""Basic usage example for UUTEL (Universal AI Provider for LiteLLM).
-
-This example demonstrates how to use UUTEL's core functionality:
-- Creating BaseUU provider instances
-- Using authentication framework
-- Message transformation utilities
-- Error handling with custom exceptions
-- HTTP client creation and configuration
-
-Run this example to see UUTEL's core functionality in action.
-"""
+"""Deterministic walkthrough of UUTEL capabilities using recorded completions."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
-
-from litellm.types.utils import ModelResponse
 
 from uutel import (
-    AuthenticationError,
-    BaseAuth,
-    BaseUU,
-    UUTELError,
     create_http_client,
     extract_provider_from_model,
-    format_error_message,
     transform_openai_to_provider,
     transform_provider_to_openai,
     validate_model_name,
 )
-from uutel.core.runners import SubprocessResult
-from uutel.providers.claude_code import ClaudeCodeUU
+from uutel.core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "tests" / "data" / "providers"
+
+RECORDED_FIXTURES: list[dict[str, Any]] = [
+    {
+        "label": "Codex (GPT-4o)",
+        "key": "codex",
+        "engine": "codex",
+        "prompt": "Write a sorter",
+        "path": FIXTURE_ROOT / "codex" / "simple_completion.json",
+        "live_hint": 'uutel complete --prompt "Write a sorter" --engine codex',
+    },
+    {
+        "label": "Claude Code (Sonnet 4)",
+        "key": "claude",
+        "engine": "claude",
+        "prompt": "Say hello",
+        "path": FIXTURE_ROOT / "claude" / "simple_completion.json",
+        "live_hint": 'uutel complete --prompt "Say hello" --engine claude',
+    },
+    {
+        "label": "Gemini CLI (2.5 Pro)",
+        "key": "gemini",
+        "engine": "gemini",
+        "prompt": "Summarise Gemini API",
+        "path": FIXTURE_ROOT / "gemini" / "simple_completion.json",
+        "live_hint": 'uutel complete --prompt "Summarise Gemini API" --engine gemini',
+    },
+    {
+        "label": "Cloud Code (Gemini 2.5 Pro)",
+        "key": "cloud_code",
+        "engine": "cloud",
+        "prompt": "Deployment checklist",
+        "path": FIXTURE_ROOT / "cloud_code" / "simple_completion.json",
+        "live_hint": 'uutel complete --prompt "Deployment checklist" --engine cloud',
+    },
+]
 
 
-class ExampleAuth(BaseAuth):
-    """Example authentication class for demonstration."""
+def truncate(text: str, limit: int = 120) -> str:
+    """Return a compact preview of text for terminal output."""
 
-    def __init__(self, api_key: str = "demo-key") -> None:
-        """Initialize example auth with demo credentials."""
-        super().__init__()
-        self.provider_name = "example"
-        self.auth_type = "api-key"
-        self.api_key = api_key
+    text = " ".join(text.strip().split())
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    if limit <= 3:
+        return text[:limit]
+    return f"{text[: limit - 3]}..."
 
-    def authenticate(self, **kwargs: Any) -> dict[str, Any]:
-        """Simulate authentication process."""
-        print(f"🔑 Authenticating with {self.provider_name} using {self.auth_type}")
 
-        if not self.api_key or self.api_key == "invalid":
-            raise AuthenticationError(
-                "Invalid API key", provider=self.provider_name, error_code="AUTH_001"
+def _normalise_structured_content(content: Any) -> str:
+    """Collapse structured message content (lists/dicts) into a plain string."""
+
+    parts: list[str] = []
+    _function_keys = {"functionCall", "function_call", "toolCall", "tool_calls"}
+
+    def _collect(node: Any) -> None:
+        if node is None:
+            return
+        if isinstance(node, str):
+            parts.append(node)
+            return
+        if isinstance(node, dict):
+            node_type = node.get("type")
+            if node_type in {"tool_call", "tool_calls"}:
+                return
+            if any(key in node for key in _function_keys):
+                return
+            if "text" in node:
+                _collect(node.get("text"))
+                return
+            if "content" in node:
+                _collect(node.get("content"))
+                return
+            for key, value in node.items():
+                if key in _function_keys:
+                    continue
+                _collect(value)
+            return
+        if isinstance(node, list):
+            for item in node:
+                _collect(item)
+            return
+        text_value = str(node)
+        if text_value:
+            parts.append(text_value)
+
+    _collect(content)
+    combined = "".join(parts)
+    return combined.strip()
+
+
+def _sum_positive_tokens(*values: Any) -> int | None:
+    """Return the sum of provided token values when at least one is positive."""
+
+    total = 0
+    seen = False
+
+    for value in values:
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int | float):
+            int_value = int(value)
+            if int_value > 0:
+                total += int_value
+                seen = True
+
+    return total if seen and total > 0 else None
+
+
+def extract_recorded_text(key: str, payload: dict[str, Any]) -> tuple[str, int]:
+    """Pull the primary text and token count from a recorded payload."""
+
+    if key == "codex":
+        message = payload.get("choices", [{}])[0].get("message", {})
+        text = _normalise_structured_content(message.get("content"))
+        usage = payload.get("usage") or {}
+        total_tokens = usage.get("total_tokens")
+        if not isinstance(total_tokens, int) or total_tokens <= 0:
+            fallback = _sum_positive_tokens(
+                usage.get("prompt_tokens"), usage.get("completion_tokens")
             )
+            total_tokens = fallback if fallback is not None else 0
+        return text, total_tokens
 
-        return {
-            "success": True,
-            "token": f"token-{self.api_key}",
-            "expires_at": None,
-            "error": None,
-        }
+    if key == "claude":
+        text = payload.get("result", "")
+        usage = payload.get("usage", {})
+        tokens = usage.get("total_tokens")
+        if tokens is None:
+            tokens = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+        return text, tokens
 
-    def get_headers(self) -> dict[str, str]:
-        """Get authentication headers."""
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+    if key == "gemini":
+        candidate = payload.get("candidates", [{}])[0]
+        parts = candidate.get("content", {}).get("parts", [])
+        text = "".join(
+            segment
+            for segment in (_normalise_structured_content(part) for part in parts)
+            if segment
+        )
+        usage_metadata = payload.get("usageMetadata") or {}
+        total_tokens = usage_metadata.get("totalTokenCount")
+        if not isinstance(total_tokens, int) or total_tokens <= 0:
+            fallback = _sum_positive_tokens(
+                usage_metadata.get("promptTokenCount"),
+                usage_metadata.get("candidatesTokenCount"),
+            )
+            total_tokens = fallback if fallback is not None else 0
+        return text, total_tokens
 
-    def refresh_token(self) -> dict[str, Any]:
-        """Simulate token refresh."""
-        print("🔄 Refreshing authentication token")
-        return self.authenticate()
+    if key == "cloud_code":
+        response = payload.get("response", {})
+        candidate = response.get("candidates", [{}])[0]
+        parts = candidate.get("content", {}).get("parts", [])
+        text = "".join(
+            segment
+            for segment in (_normalise_structured_content(part) for part in parts)
+            if segment
+        )
+        usage_metadata = response.get("usageMetadata") or {}
+        total_tokens = usage_metadata.get("totalTokenCount")
+        if not isinstance(total_tokens, int) or total_tokens <= 0:
+            fallback = _sum_positive_tokens(
+                usage_metadata.get("promptTokenCount"),
+                usage_metadata.get("candidatesTokenCount"),
+            )
+            total_tokens = fallback if fallback is not None else 0
+        return text, total_tokens
 
-    def is_valid(self) -> bool:
-        """Check if authentication is valid."""
-        return self.api_key != "invalid"
+    raise ValueError(f"Unknown provider key '{key}'")
 
 
-class ExampleProvider(BaseUU):
-    """Example provider class for demonstration."""
+def _env_flag(name: str) -> bool:
+    """Interpret an environment variable as a boolean flag."""
 
-    def __init__(self, api_key: str = "demo-key") -> None:
-        """Initialize example provider."""
-        super().__init__()
-        self.provider_name = "example"
-        self.supported_models = ["example-model-1.0", "example-model-2.0"]
-        self.auth = ExampleAuth(api_key)
+    value = os.getenv(name, "").strip().lower()
+    return value in {"1", "true", "yes", "on", "y", "t"}
 
-    def completion(
-        self, model: str, messages: list[dict[str, Any]], **kwargs: Any
-    ) -> dict[str, Any]:
-        """Simulate completion request (not actually implemented in base)."""
-        # This would normally call the actual provider API
-        print(f"🤖 Making completion request to {model}")
-        print(f"📝 Messages: {len(messages)} messages")
 
-        # Transform messages to provider format (for demonstration)
-        transform_openai_to_provider(messages, self.provider_name)
+def _resolve_stub_dir() -> Path | None:
+    """Return the live fixtures directory when provided."""
 
-        # Simulate API response
-        response = {
-            "id": "example-123",
-            "model": model,
-            "choices": [
+    raw = os.getenv("UUTEL_LIVE_FIXTURES_DIR", "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    return candidate if candidate.is_dir() else None
+
+
+def _load_stub_payload(
+    fixture: dict[str, Any], stub_dir: Path | None
+) -> tuple[dict[str, Any] | None, Path | None]:
+    """Load stub payload for a fixture when stub directory is configured."""
+
+    if not stub_dir:
+        return None, None
+
+    candidate = stub_dir / fixture["path"].parent.name / fixture["path"].name
+    if not candidate.is_file():
+        return None, None
+
+    try:
+        raw_text = candidate.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        message = f"Unable to decode stub {candidate}: {exc}"
+        logger.warning(message)
+        return {"error": message}, candidate
+    except OSError as exc:
+        reason = getattr(exc, "strerror", None) or str(exc)
+        message = f"Unable to read stub {candidate}: {reason}"
+        logger.warning(message)
+        return {"error": message}, candidate
+
+    try:
+        payload = json.loads(raw_text)
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+        message = f"Invalid stub JSON: {exc}"
+        logger.warning(message)
+        return {"error": message}, candidate
+    return payload, candidate
+
+
+def _invoke_live_completion(fixture: dict[str, Any]) -> tuple[str, int]:
+    """Perform a live completion using LiteLLM providers."""
+
+    import litellm
+
+    from uutel.__main__ import validate_engine  # Local import to avoid CLI startup cost
+
+    canonical_engine = validate_engine(fixture["engine"])
+    response = litellm.completion(
+        model=canonical_engine,
+        messages=[{"role": "user", "content": fixture["prompt"]}],
+        max_tokens=fixture.get("max_tokens", 256),
+        temperature=fixture.get("temperature", 0.7),
+    )
+
+    payload = response.model_dump() if hasattr(response, "model_dump") else response
+    text, tokens = extract_recorded_text(fixture["key"], payload)
+    return text, tokens
+
+
+def _gather_live_runs(
+    fixtures: list[dict[str, Any]], stub_dir: Path | None
+) -> list[dict[str, Any]]:
+    """Collect live or stubbed responses for the configured fixtures."""
+
+    entries: list[dict[str, Any]] = []
+    cli = None
+
+    for fixture in fixtures:
+        label = fixture["label"]
+        payload, payload_path = _load_stub_payload(fixture, stub_dir)
+
+        if payload is not None and "error" not in payload:
+            text, tokens = extract_recorded_text(fixture["key"], payload)
+            entries.append(
                 {
-                    "message": {
-                        "role": "assistant",
-                        "content": f"Hello! This is a simulated response from {model}.",
-                    },
-                    "finish_reason": "stop",
-                    "index": 0,
+                    "label": label,
+                    "status": "stub",
+                    "text": text,
+                    "tokens": tokens,
+                    "source": f"Stub fixture {payload_path}",
                 }
-            ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
-        }
+            )
+            continue
 
-        return response
+        if cli is None:
+            from uutel.__main__ import UUTELCLI
+
+            cli = UUTELCLI()
+
+        ready, guidance = cli._check_provider_readiness(fixture["engine"])
+        if payload is not None and "error" in payload:
+            entry = {
+                "label": label,
+                "status": "error",
+                "message": payload["error"],
+            }
+            if guidance:
+                entry["guidance"] = guidance
+            entries.append(entry)
+            continue
+
+        if not ready:
+            entries.append(
+                {
+                    "label": label,
+                    "status": "unready",
+                    "guidance": guidance,
+                }
+            )
+            continue
+
+        try:
+            text, tokens = _invoke_live_completion(fixture)
+            entries.append(
+                {
+                    "label": label,
+                    "status": "live",
+                    "text": text,
+                    "tokens": tokens,
+                    "source": f"Live via {fixture['engine']}",
+                }
+            )
+        except Exception as exc:  # pragma: no cover - relies on external services
+            entry = {
+                "label": label,
+                "status": "error",
+                "message": f"Live call failed: {exc}",
+            }
+            if guidance:
+                entry["guidance"] = guidance
+            entries.append(entry)
+
+    return entries
 
 
-def demonstrate_core_functionality():
-    """Demonstrate UUTEL's core functionality."""
+def demonstrate_core_functionality() -> None:
+    """Demonstrate key utilities and replay recorded provider outputs."""
+
     print("🚀 UUTEL Basic Usage Example")
     print("=" * 50)
 
-    # 1. Model name validation
+    # 1. Model validation
     print("\n1️⃣ Model Name Validation")
-    model_names = [
-        "example-model-1.0",
-        "uutel/claude-code/claude-3-5-sonnet",
+    models = [
+        "uutel-codex/gpt-4o",
+        "uutel-claude/claude-sonnet-4",
+        "uutel-gemini/gemini-2.5-pro",
         "invalid/model",
-        "model with spaces",
     ]
-
-    for model in model_names:
-        is_valid = validate_model_name(model)
-        status = "✅ Valid" if is_valid else "❌ Invalid"
+    for model in models:
+        status = "✅ Valid" if validate_model_name(model) else "❌ Invalid"
         print(f"   {model}: {status}")
 
-    # 2. Provider and model extraction
+    # 2. Provider extraction
     print("\n2️⃣ Provider/Model Extraction")
-    full_models = [
-        "uutel/claude-code/claude-3-5-sonnet",
-        "uutel/gemini-cli/gemini-2.0-flash",
-        "simple-model",
-    ]
-
-    for full_model in full_models:
-        provider, model = extract_provider_from_model(full_model)
-        print(f"   {full_model} → Provider: {provider}, Model: {model}")
+    for model in models[:3]:
+        provider, short_model = extract_provider_from_model(model)
+        print(f"   {model} → Provider: {provider}, Model: {short_model}")
 
     # 3. Message transformation
     print("\n3️⃣ Message Transformation")
     sample_messages = [
-        {"role": "system", "content": "You are a helpful assistant"},
-        {"role": "user", "content": "Hello, world!"},
+        {"role": "system", "content": "You are a precise assistant."},
+        {"role": "user", "content": "List two reliability tips."},
     ]
-
+    provider_format = transform_openai_to_provider(sample_messages, "codex")
+    round_trip = transform_provider_to_openai(provider_format, "codex")
     print(f"   Original messages: {len(sample_messages)}")
-
-    # Transform to provider format and back
-    provider_format = transform_openai_to_provider(sample_messages, "example")
-    back_to_openai = transform_provider_to_openai(provider_format, "example")
-
-    print(f"   After round-trip: {len(back_to_openai)}")
-    print(f"   Content preserved: {sample_messages == back_to_openai}")
+    print(f"   Return trip preserves content: {sample_messages == round_trip}")
 
     # 4. HTTP client creation
     print("\n4️⃣ HTTP Client Creation")
-
     sync_client = create_http_client(async_client=False, timeout=10.0)
     async_client = create_http_client(async_client=True, timeout=10.0)
-
     print(f"   Sync client type: {type(sync_client).__name__}")
     print(f"   Async client type: {type(async_client).__name__}")
 
-    # 5. Authentication demonstration
-    print("\n5️⃣ Authentication Framework")
+    # 5. Recorded provider responses
+    print("\n5️⃣ Recorded Provider Responses")
+    for fixture in RECORDED_FIXTURES:
+        payload = json.loads(fixture["path"].read_text(encoding="utf-8"))
+        text, tokens = extract_recorded_text(fixture["key"], payload)
+        print(f"   {fixture['label']}: {truncate(text)}")
+        print(f"      Tokens: {tokens}")
+        print(f"      Live run: {fixture['live_hint']}")
 
-    try:
-        # Valid authentication
-        auth = ExampleAuth("valid-key")
-        result = auth.authenticate()
-        print(f"   ✅ Auth successful: {result['success']}")
+    # 6. Async functionality demo
+    print("\n6️⃣ Async Client Demo")
 
-        headers = auth.get_headers()
-        print(f"   🔑 Headers: {len(headers)} headers")
+    async def _async_demo() -> None:
+        client = create_http_client(async_client=True, timeout=5.0)
+        print(f"   Created async client: {type(client).__name__}")
+        if hasattr(client, "aclose"):
+            await client.aclose()
+        print("   ✅ Async client closed cleanly")
 
-    except UUTELError as e:
-        print(f"   ❌ Auth failed: {e}")
+    asyncio.run(_async_demo())
 
-    # 6. Provider demonstration
-    print("\n6️⃣ Provider Usage")
+    # 7. Optional live provider runs
+    print("\n7️⃣ Live Provider Runs")
+    live_mode = _env_flag("UUTEL_LIVE_EXAMPLE")
+    stub_dir = _resolve_stub_dir()
 
-    try:
-        provider = ExampleProvider("demo-key")
-        print(f"   📡 Provider: {provider.provider_name}")
-        print(f"   🎯 Supported models: {len(provider.supported_models)}")
-
-        # Simulate completion
-        response = provider.completion(
-            model="example-model-1.0", messages=sample_messages
+    if not live_mode:
+        print(
+            "   💤 Live mode disabled. Set UUTEL_LIVE_EXAMPLE=1 to perform live calls."
         )
-        print(f"   💬 Response ID: {response['id']}")
-        print(f"   📊 Token usage: {response['usage']['total_tokens']}")
+        return
 
-    except UUTELError as e:
-        error_msg = format_error_message(e, "example")
-        print(f"   ❌ Provider error: {error_msg}")
+    if stub_dir:
+        print(f"   📂 Using stub directory: {stub_dir}")
 
-    # 7. Error handling demonstration
-    print("\n7️⃣ Error Handling")
+    entries = _gather_live_runs(RECORDED_FIXTURES, stub_dir)
+    if not entries:
+        print("   ⚠️ No live responses produced.")
+        return
 
-    try:
-        # This will raise an authentication error
-        bad_auth = ExampleAuth("invalid")
-        bad_auth.authenticate()
+    for entry in entries:
+        label = entry["label"]
+        status = entry["status"]
 
-    except AuthenticationError as e:
-        print(f"   🚫 Caught AuthenticationError: {e}")
-        print(f"   📍 Provider: {e.provider}")
-        print(f"   🔢 Error code: {e.error_code}")
+        if status in {"live", "stub"}:
+            text = entry.get("text", "")
+            tokens = entry.get("tokens", 0)
+            source = entry.get("source", "")
+            print(f"   {label}: {truncate(text)}")
+            print(f"      Tokens: {tokens}")
+            if source:
+                print(f"      Source: {source}")
+            continue
 
-    except UUTELError as e:
-        print(f"   ❌ Caught UUTELError: {e}")
+        if status == "unready":
+            print(f"   {label}: ⚠️ Provider prerequisites missing")
+            for hint in entry.get("guidance", []):
+                print(f"      {hint}")
+            continue
 
-    print("\n✨ Example completed successfully!")
-
-
-def demonstrate_claude_fixture_replay() -> None:
-    """Replay the recorded Claude CLI fixture without requiring the CLI."""
-
-    print("\n8️⃣ Claude Code Fixture Replay")
-    fixture_path = (
-        Path(__file__).resolve().parent.parent
-        / "tests"
-        / "data"
-        / "providers"
-        / "claude"
-        / "simple_completion.json"
-    )
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-
-    provider = ClaudeCodeUU()
-    model_response = ModelResponse()
-    model_response.choices = [Mock()]
-    model_response.choices[0].message = Mock()
-    model_response.choices[0].message.content = ""
-    model_response.choices[0].message.tool_calls = None
-    model_response.choices[0].finish_reason = None
-    model_response.usage = None
-
-    def _fake_run(command: list[str], **_: Any) -> SubprocessResult:
-        return SubprocessResult(
-            command=tuple(command),
-            returncode=0,
-            stdout=json.dumps(payload),
-            stderr="",
-            duration_seconds=0.1,
-        )
-
-    with (
-        patch.object(provider, "_resolve_cli", return_value="claude"),
-        patch(
-            "uutel.providers.claude_code.provider.run_subprocess",
-            new=_fake_run,
-        ),
-    ):
-        result = provider.completion(
-            model="claude-sonnet-4",
-            messages=[{"role": "user", "content": "Say hello"}],
-            api_base="",
-            custom_prompt_dict={},
-            model_response=model_response,
-            print_verbose=lambda *args, **kwargs: None,
-            encoding="utf-8",
-            api_key=None,
-            logging_obj=None,
-            optional_params={},
-        )
-
-    usage = result.usage or {}
-    print(f"   📁 Fixture: {fixture_path.relative_to(Path.cwd())}")
-    print(f"   🧠 Text: {result.choices[0].message.content.strip()}")
-    print(
-        "   📊 Tokens: input={i}, output={o}, total={t}".format(
-            i=usage.get("input_tokens", "?"),
-            o=usage.get("output_tokens", "?"),
-            t=usage.get("total_tokens", "?"),
-        )
-    )
-    print("   🔄 To run live: npm install -g @anthropic-ai/claude-code && claude login")
-    print(
-        "              uutel complete --engine uutel/claude-code/claude-sonnet-4 --stream"
-    )
-
-
-async def demonstrate_async_functionality():
-    """Demonstrate async functionality (placeholder)."""
-    print("\n🔄 Async Functionality Demo")
-
-    # Create async HTTP client
-    async_client = create_http_client(async_client=True)
-    print(f"   Created async client: {type(async_client).__name__}")
-
-    # Simulate async operation
-    await asyncio.sleep(0.1)
-    print("   ✅ Async operation completed")
-
-
-def main():
-    """Main example function."""
-    try:
-        # Run synchronous examples
-        demonstrate_core_functionality()
-        demonstrate_claude_fixture_replay()
-
-        # Run async examples
-        asyncio.run(demonstrate_async_functionality())
-
-    except Exception as e:
-        print(f"\n💥 Unexpected error: {e}")
-        import traceback
-
-        traceback.print_exc()
+        print(f"   {label}: ⚠️ {entry.get('message', 'Live call failed')}")
+        for hint in entry.get("guidance", []):
+            print(f"      {hint}")
 
 
 if __name__ == "__main__":
-    main()
+    demonstrate_core_functionality()

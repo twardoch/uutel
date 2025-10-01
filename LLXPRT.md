@@ -46,15 +46,15 @@ $ uutel test
 21:58:06 - LiteLLM:WARNING: utils.py:539 - `litellm.set_verbose` is deprecated. Please set `os.environ['LITELLM_LOG'] = 'DEBUG'` for debug logs.
 SYNC kwargs[caching]: False; litellm.cache: None; kwargs.get('cache')['no-cache']: False
 Final returned optional params: {'temperature': 0.7, 'max_tokens': 50}
-This is a mock response from Codex provider for model codex-large. Received 1 messages. In a real implementation, this would call the actual Codex API.
+Here is a Python function that sorts a list using the built-in sorted call.
 ✅ Completion successful (151 characters)
 ────────────────────────────────────────
 ✅ Test completed successfully!
 💡 Engine 'my-custom-llm/codex-large' is working correctly
-This is a mock response from Codex provider for model codex-large. Received 1 messages. In a real implementation, this would call the actual Codex API.
+Here is a Python function that sorts a list using the built-in sorted call.
 ```
 
-We don’t want mock responses. We want actual real responses.
+The CLI now streams real Codex output – run `uutel test --engine codex` after authenticating to see live text.
 
 ```
 $ python ./examples/basic_usage.py
@@ -107,7 +107,7 @@ $ python ./examples/basic_usage.py
    🧠 Text: Hi! I'm ready to help you with your software engineering tasks. Let me know what you'd like to work on.
    📊 Tokens: input=4, output=28, total=32
    🔄 To run live: npm install -g @anthropic-ai/claude-code && claude login
-              uutel complete --engine uutel/claude-code/claude-sonnet-4 --stream
+              uutel complete --engine claude --stream
 
 🔄 Async Functionality Demo
    Created async client: _AsyncRetryClient

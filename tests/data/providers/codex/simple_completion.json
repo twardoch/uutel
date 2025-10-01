@@ -9,15 +9,15 @@
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Here is a Python function that sorts a list using the built-in sorted call.\n\n```python\ndef sort_list(values: list[int]) -> list[int]:\n    \"\"\"Return a new list containing the sorted values.\"\"\"\n    return sorted(values)\n```"
+        "content": "Sure—here's a defensive sorter that returns a sorted copy without mutating the original sequence. It filters out None values and keeps numeric types intact.\n\n```python\nfrom collections.abc import Sequence\n\ndef sort_numbers(values: Sequence[int | float]) -> list[int | float]:\n    \"\"\"Return a sorted copy while leaving the original untouched.\"\"\"\n    cleaned = [value for value in values if value is not None]\n    return sorted(cleaned)\n```"
       },
       "finish_reason": "stop"
     }
   ],
   "usage": {
-    "prompt_tokens": 28,
-    "completion_tokens": 48,
-    "total_tokens": 76
+    "prompt_tokens": 34,
+    "completion_tokens": 96,
+    "total_tokens": 130
   },
   "account": {
     "id": "acct_REDACTED",

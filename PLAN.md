@@ -2,89 +2,101 @@
 this_file: PLAN.md
 ---
 
-# UUTEL Real Provider Implementation Plan
+# UUTEL Provider Parity Roadmap
 
 ## Scope
-Expose real LiteLLM-compatible providers for Claude Code CLI, Gemini CLI Core, Google Cloud Code, and OpenAI Codex so that `uutel` returns genuine model outputs with streaming, tool calling, and error handling.
+Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Cloud Code with full parity to their CLI counterparts, realistic fixtures, and hardening focused on reliability rather than new surface area.
 
-## Current State Assessment
-- Providers in `src/uutel/providers/*` still return mock completions and streaming tokens.
-- Authentication helpers read configs but never call real CLIs or REST APIs.
-- CLI commands (`uutel complete`, `uutel list_engines`, etc.) work but only exercise fake provider logic.
-- Tests validate formatting and CLI UX but do not exercise live provider flows.
-- Dependencies do not yet include vendor SDKs (`anthropic`, `google-generativeai`, Google auth libs, etc.).
+## Current Focus
+- CLI, config, and fixture guardrails are in place with comprehensive regression coverage (326 tests passing).
+- Recorded examples and diagnostics already reflect live provider behaviour.
+- Remaining gaps sit in the provider adapters themselves: Codex still lacks live HTTP flows, Gemini CLI parity is partial, and Cloud Code needs OAuth-oriented polish.
 
-## External Provider Characteristics (from repo TLDR references)
-- **Claude Code CLI**: Requires local `@anthropic-ai/claude-code` install and `claude login`. Supports multi-turn conversations, configurable allowed tools, streaming stdout events (json lines). Parameters like `temperature` limited; no native structured outputs.
-- **Gemini CLI Core**: Wraps Gemini HTTP APIs via OAuth or API key credentials stored under `~/.gemini`. Supports multimodal prompts, JSON schema outputs, tool/function calling. Provides streaming chunks with metadata.
-- **Google Cloud Code**: Hits internal Google endpoint `/v1internal:generateContent` requiring OAuth2 (service account or user flow). Requires project ID, supports tool calling and JSON schema injection via prompt transform.
-- **OpenAI Codex CLI**: Stores auth at `~/.codex/auth.json`, needs token refresh flow against `https://auth.openai.com/oauth/token`. Uses ChatGPT backend endpoints with specific headers (`chatgpt-account-id`). Supports streaming and tool calls similar to Chat Completions.
+## Phase 2 – OpenAI Codex Provider Parity
+- Implement real HTTP completion + streaming calls using tokens from `CodexAuth`, handling refresh-token flow and LiteLLM chunk translation.
+- Map tool/function call payloads between OpenAI responses and LiteLLM expectations, including streaming deltas.
+- Add retry/backoff on 401/429 with targeted unit tests that assert refresh triggers and rate-limit handling.
+- Extend CLI smoke tests so `uutel complete --engine codex` uses live outputs when credentials exist, guarded by env flag for CI.
 
-## Phase Breakdown
+## Phase 3 – Gemini CLI OAuth & Feature Parity
+- Bring OAuth-based CLI parity to the Gemini provider, including multimodal prompts and diagnostics output that mirrors the official CLI.
+- Validate parameters (temperature, top_p, safety) and emit warnings for unsupported settings with regression coverage.
+- Refresh recorded fixtures with realistic Gemini CLI responses covering tool calls and JSON schema output.
+- Expand `tests/test_gemini_provider.py` to cover OAuth credential refresh paths and streaming chunk fidelity.
 
-### Phase 2 – Implement OpenAI Codex Provider First (baseline)
-- Replace `CodexUU` mock completion with real HTTP calls to ChatGPT backend endpoints using tokens from `CodexAuth` logic.
-- Support endpoints for standard completion and streamed SSE (map to `GenericStreamingChunk`).
-- Implement tool call conversion to/from OpenAI function call format.
-- Add retry logic using existing resilience utilities with detection for 401 (trigger refresh) and rate limit handling.
-- Tests: mocked HTTP responses verifying request payloads, token refresh triggered on 401, streaming chunk assembly. Integration test hitting live API guarded behind env flag.
-- CLI smoke tests: `uutel complete --engine uutel/codex/...` should return non-mock output when credentials present.
+## Phase 4 – Google Cloud Code OAuth & Streaming Polish
+- Implement OAuth2 client handling for service-account and user credentials via `google-auth` libraries, ensuring project-aware requests.
+- Port Cloud Code message conversion logic (system prompts, JSON schema injection, tool config) from TypeScript references.
+- Wire streaming completions through `/v1internal:streamGenerateContent` (or equivalent) translating candidates into LiteLLM chunks.
+- Add contract tests with recorded Cloud Code responses plus CLI readiness coverage for OAuth/project edge cases.
 
-### Phase 3 – Implement Gemini CLI Provider
-- ✅ Completed: API-key path using `google-generativeai` with JSON schema tooling, tool call support, and text/multimodal content conversion.
-- Implement CLI/OAuth parity for advanced features (multimodal commands, diagnostics) and capture additional recorded fixtures.
-- Provide parameter validation (reject unsupported frequency/presence penalties, etc.) with warnings.
-- Tests: extend mocked coverage for CLI fallback streaming and refresh edge cases; maintain credential loader refresh assertions.
 
-### Phase 4 – Implement Google Cloud Code Provider
-- ✅ Baseline `/v1internal` completion + streaming paths with tool/JSON schema support landed (2025-09-30)
-- Implement OAuth2 client using `google-auth-oauthlib` to read Cloud Code credentials (project-specific). Provide fallback for service account JSON path.
-- Port message conversion logic from TS: system instructions, tool config, JSON schema injection.
-- Call `/v1internal:generateContent` with appropriate headers and handle response structure (candidates, usage metadata, tool calls).
-- Support streaming via `:streamGenerateContent` endpoint (if available) or chunk translation from long-poll responses.
-- Tests: contract tests with recorded responses, ensure warnings emitted for unsupported settings, verify tool call conversion.
-
-### Phase 5 – Implement Claude Code CLI Provider
-- ✅ Completed (2025-10-01): CLI subprocess integration with JSON payload replay, streaming chunk parsing, tool filtering, working directory support, and cancellation hooks.
-- ✅ Completed: Fixture-driven unit tests covering completion, streaming, cancellation, and CLI unavailability error messaging.
-- Follow-up: consider opt-in live CLI integration tests behind `UUTEL_RUN_LIVE_CLAUDE=1` once credentials available.
-
-### Phase 6 – Documentation, CLI UX, and Validation
-- ✅ README updated with live-run instructions and fixture replay notes (2025-10-01).
-- Update `DEPENDENCIES.md` explaining new packages and reasoning.
-- ✅ CLI help expanded with provider requirements section (2025-10-01).
-- ✅ Examples refreshed with recorded provider outputs and replay instructions (2025-10-01).
-- ✅ uvx hatch test executed post-changes; log results in WORK.md and CHANGELOG.md.
 
 ## Testing & Validation Strategy
-- Follow test-first approach: for each provider feature, write failing test capturing expected behaviour before implementation.
-- Use pytest fixtures with recorded sample payloads to avoid requiring live network in unit tests.
-- Provide opt-in integration tests triggered via env flags (`UUTEL_RUN_LIVE_CODEX=1`, etc.) to validate against real services when credentials present.
-- Add functional smoke tests under `examples/` with automation via `./test.sh` script (runs lint + pytest + examples).
-- Track coverage improvements; target >=80% overall with focus on new modules.
+- Maintain tests-first workflow: introduce failing unit/integration tests for each bullet before implementation.
+- Continue using `uvx hatch test` for regression sweeps; document every run in `CHANGELOG.md` and `WORK.md`.
+- Refresh fixtures in `tests/data/providers/**` concurrently with provider updates and validate via `tests/test_fixture_integrity.py`.
 
-## Package & Tooling Decisions
-- Add `google-auth`, `google-auth-oauthlib`, `google-generativeai` for Google providers.
-- Consider `anthropic` only if CLA CLI subprocess proves insufficient; primary plan is CLI subprocess without extra package.
-- Use existing `httpx` for Codex HTTP calls; rely on standard library `asyncio` + `subprocess` for CLI streaming.
-- Evaluate `aiofiles` only if asynchronous file IO needed for credential caches (otherwise skip).
+## Mini Hardening Sprint – Alias & Fixture Alignment
+- **Status**: Completed 2025-10-07 (alias alignment + usage guidance hardening).
+- **Objective**: Ensure CLI alias usage stays consistent across documentation, fixtures, and runtime helpers so users can invoke providers with shorthand names (`codex`, `claude`, `gemini`, `cloud`) without regressions.
+- **Tasks**:
+  1. Extend `uutel.core.utils.validate_model_name` to accept the hyphenated canonical engines emitted by the CLI (e.g., `uutel-claude/claude-sonnet-4`) and add regression tests plus example assertions that mark these engines as valid.
+  2. Guard recorded fixture metadata by deriving canonical engines via `validate_engine`, and add tests ensuring `engine`/`live_hint` fields stay alias-first so fixtures and docs never drift back to raw provider strings.
+  3. Refresh `UUTELCLI.list_engines` usage guidance to highlight alias-first commands for `uutel complete` and `uutel test`, accompanied by CLI snapshot tests that lock in the new help messaging.
+- **Validation**:
+  - Tests-first: extend `tests/test_examples.py` (fixture metadata) and `tests/test_cli.py` (list output) with failing cases before implementation.
+  - Run targeted pytest modules prior to full regression suite for faster feedback.
+  - Record updates in `WORK.md`, surface new tests in `CHANGELOG.md` after the regression sweep.
+
+## Mini Hardening Sprint – Config Normalisation (Planned 2025-10-07)
+- **Status**: Completed 2025-10-07
+- **Objective**: Ensure persisted configuration values are normalised before validation so CLI runs remain stable even when users edit `.uutel.toml` manually.
+- **Tasks**:
+  1. Extend `uutel.core.config.load_config` to coerce string/float `max_tokens` values (including signed digits and underscore separators) into integers before validation, and add regression tests in `tests/test_config.py`.
+  2. Coerce boolean-like values for `stream`/`verbose` (e.g. "true", "0", "off") to actual booleans to avoid downstream type failures, with accompanying tests covering accepted/rejected literals.
+  3. Trim whitespace-only `engine`/`system` strings to `None` so placeholder values do not leak into CLI defaults, and document the behaviour with targeted tests.
+- **Validation**:
+  - Write failing tests in `tests/test_config.py` capturing each coercion/normalisation scenario before implementation.
+  - Run focused pytest selection for config tests, then full `uvx hatch test`; record results in `CHANGELOG.md` and `WORK.md`.
+
+
+## Mini Hardening Sprint – CLI & Docs Parity (Planned 2025-10-07)
+- **Objective**: Lock CLI help output
+
+## Mini Hardening Sprint – Config CLI Input Validation (Planned 2025-10-07)
+- **Status**: Completed 2025-10-07
+- **Objective**: Harden `uutel config set` input handling so invalid values surface consistent guidance and supported coercions stay regression-tested.
+- **Tasks**:
+  1. Add regression coverage ensuring `uutel config set` rejects out-of-range or non-numeric `max_tokens`/`temperature` inputs with the current guidance message and without writing new config files.
+  2. Verify the `default`/`none` sentinels on boolean flags clear persisted overrides by asserting `uutel config set --stream default --verbose default` removes stored values and updates CLI state.
+  3. Accept numeric literals containing underscore separators (e.g. `1_000`) and mixed-case boolean keywords via `uutel config set`, locking behaviour with dedicated tests.
+- **Validation**:
+  - Introduce failing tests in `tests/test_cli.py::TestCLIConfigCommands` covering each scenario before touching implementation.
+  - Patch `save_config` and filesystem interactions in tests to assert no unintended writes occur on validation failure.
+  - Run targeted selection (`uvx hatch test tests/test_cli.py::TestCLIConfigCommands`) followed by full suite; record both runs in `WORK.md` and `CHANGELOG.md`.
+ and documentation commands to the actual alias/canonical engine mapping so user guidance stays accurate.
+- **Tasks**:
+  1. Snapshot CLI help output for `uutel`, `uutel complete`, and `uutel test` using `CliRunner`, storing fixtures that assert alias-first examples and parameter guidance stay in sync.
+  2. Add documentation lint tests that scan README and troubleshooting guides for `--engine` usage and assert each referenced engine resolves via `validate_engine`, preventing stale aliases.
+  3. Guard the README default config snippet by asserting it matches `create_default_config()` output so documentation reflects current defaults.
+- **Validation**:
+  - Write failing tests covering help snapshots, documentation alias linting, and config snippet parity before implementation.
+  - Run targeted pytest selections followed by full `uvx hatch test`; capture outcomes in `WORK.md` and `CHANGELOG.md`.
+  - Clear corresponding TODO items once the suite passes and documentation stays synchronized.
+
+## Mini Hardening Sprint – Config CLI Guardrails (Completed 2025-10-07)
+- **Objective**: Prevent silent configuration drift by hardening CLI config workflows and locking defaults to the documented snippet.
+- **Tasks**:
+  1. Detect and reject unknown keyword arguments in `uutel config set` with guidance so typos never silently no-op.
+  2. Add a regression test asserting that `uutel config init` writes the exact snippet returned by `create_default_config()` (including trailing newline).
+  3. Cover the `uutel config show` no-file branch with a CLI test that verifies the guidance message recommending `uutel config init`.
+- **Validation**:
+  - Failing pytest cases added in `tests/test_cli.py` prior to implementation ensured the CLI surfaced unknown-key errors and baseline guidance branches.
+  - `uvx hatch test` (488 passed, 2 skipped; 16.60s runtime with harness timeout at 21.2s after success) confirmed regressions stayed green and is logged in `CHANGELOG.md`/`WORK.md`.
+  - TODO backlog cleared after landing guardrails to keep plan alignment.
 
 ## Risks & Mitigations
-- **Credential availability**: Provide clear error messages and documentation; add `uutel config doctor` enhancements to check auth files.
-- **CLI version drift**: Detect CLI version via `--version` and warn if unsupported; store supported version matrix in config.
-- **Long-running subprocesses**: Implement timeouts and ensure cleanup; expose config for max duration.
-- **API changes**: Wrap HTTP interactions with typed response validation (pydantic models) so tests fail loudly when schemas change.
-
-## Success Criteria
-- `uutel complete` returns genuine model output for each provider when creds configured.
-- Streaming works end-to-end with chunked responses for all providers.
-- Tool/function calling works for providers that support it; unsupported features raise informative errors.
-- Test suite covers authentication, request translation, streaming parsing, and error paths; integration tests optional but passing when run with creds.
-- Documentation reflects real setup steps; `CHANGELOG.md` records implementation milestones.
-
-## Phase 7 – LiteLLM Adapter Alignment (2025-10-02)
-
-- Replace the remaining mock-only `CodexCustomLLM` shim with a thin delegation layer to `CodexUU` so CLI flows hit real network-backed logic.
-- Register all UU providers (`CodexUU`, `ClaudeCodeUU`, `GeminiCLIUU`, `CloudCodeUU`) with LiteLLM and surface canonical engine strings plus provider aliases (`codex`, `claude`, `gemini`, `cloud`) for quick CLI selection.
-- Update CLI UX/tests/examples to remove “mock response” phrasing, showcase realistic fixture-backed snippets, and document default model mapping for each alias.
-- Ensure new behaviour is covered by unit tests (delegation, alias validation) while remaining offline by patching provider calls.
+- Live provider calls must not break CI: guard with environment toggles and rely on replay fixtures by default.
+- OAuth flows can leak secrets in logs: scrub sensitive fields and assert masking in tests.
+- Streaming translation errors are subtle: use high-fidelity fixtures and helper tests mirroring LiteLLM chunk expectations.

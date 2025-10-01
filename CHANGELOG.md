@@ -4,9 +4,170 @@ this_file: CHANGELOG.md
 
 # CHANGELOG
 
+## [2025-10-07] - Maintenance Report
+
+### Tests
+- /report verification (current request, 2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.02s runtime; harness timeout triggered at 21.0s immediately after pytest completed successfully).
+- Config CLI input validation hardening (2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.55s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.28s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- Config CLI guardrails (2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.60s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` → 485 passed, 2 skipped (16.01s runtime; harness timeout triggered at 20.9s immediately after pytest completed successfully).
+- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` → 10 failures (expected) capturing missing help/doc parity prior to implementation.
+- `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` → 9 passed, 1 skipped validating new snapshot/doc lint coverage.
+- `uvx hatch test` → 485 passed, 2 skipped (16.53s) after CLI/docs parity refinements.
+
+### Notes
+- Normalised `uutel config set` coercion errors so invalid numeric/boolean input now reuse the shared bullet guidance and default sentinels clear stored overrides.
+- Updated CLI help docstrings to surface alias-first guidance and adjusted Fire snapshot tests to consume stderr output.
+- Refreshed README and provider docs to use `codex`/`claude` aliases exclusively and added a configuration snippet synced with `create_default_config()`.
+- Hardened `uutel config` workflows by rejecting unknown keys and locking the default snippet + missing-file guidance behind regression tests.
+
+
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - 2025-09-30
+
+### Changed - 2025-10-07
+- Normalised `uutel.core.config.load_config` parsing for `max_tokens`, boolean flags, and whitespace-heavy fields so manual `.uutel.toml` edits no longer surface type errors; backed by new regression tests.
+
+### Tests - 2025-10-07
+- Config normalisation regression (current iteration, 2025-10-07): `uvx hatch test` (473 passed, 0 failed, 1 skipped; 8.38s runtime, harness timeout at 29.8s immediately after pytest success).
+- /report verification (current request, 2025-10-07): `uvx hatch test` (460 passed, 0 failed, 1 skipped; 7.51s runtime, harness timeout at 12.0s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` (459 passed, 0 failed, 1 skipped; 9.22s runtime recorded by pytest).
+- Alias alignment hardening (2025-10-07): `uvx hatch test` (460 passed, 0 failed, 1 skipped; 7.95s runtime) covering model validation, fixture metadata, and CLI usage updates.
+- Phase 1A reliability touch-ups regression (current iteration, 2025-10-07): `uvx hatch test` (459 passed, 0 failed, 1 skipped; 8.43s runtime, command timed out at 13.5s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` (454 passed, 0 failed, 1 skipped; 9.15s runtime, command timed out at 14.6s immediately after pytest completed successfully).
+- Maintenance sprint verification (config/doc/CLI guardrails, 2025-10-07): `uvx hatch test -- -q` (454 passed, 0 failed, 1 skipped; 9.65s runtime, command timed out at 14.8s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test` (451 passed, 0 failed, 1 skipped; 9.42s runtime, command timed out at 14.9s immediately after pytest completed successfully).
+- /report verification (current request, 2025-10-07): `uvx hatch test -- -q` (451 passed, 0 failed, 1 skipped; 8.45s runtime, command timed out at 13.6s immediately after pytest completed successfully).
+- Regression verification (Phase 1 guardrails, 2025-10-01): `uvx hatch test -- -q` (451 passed, 0 failed, 1 skipped; 9.01s runtime, harness timeout at 14.1s immediately after successful completion).
+- /report verification (current request, 2025-10-01): `uvx hatch test` (445 passed, 0 failed, 1 skipped; 8.38s runtime, harness timeout at 13.6s immediately after successful completion).
+- /report verification (current request, 2025-10-01): `uvx hatch test -- -q` (445 passed, 0 failed, 1 skipped; 8.47s runtime, harness timeout at 13.6s immediately after successful completion).
+- /report verification (current request, 2025-10-01): `uvx hatch test` (437 passed, 0 failed, 1 skipped; 7.87s runtime, command timed out after harness 12.9s limit post-success).
+- Regression verification (Phase 5A helper guardrails, 2025-10-01): `uvx hatch test` (445 passed, 0 failed, 1 skipped; 8.94s runtime, harness timeout at 14.0s after success).
+- Quality hardening sweep (Phase 5 Quality sprint, 2025-10-07): `uvx hatch test` (437 passed, 0 failed, 1 skipped) completed in 9.20s validating config warnings, engine suggestions, and structured content guards.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (433 passed, 0 failed, 1 skipped) completed in 8.08s with suite exit before harness timeout at 13.3s.
+- Regression verification (Phase 6 Gemini response normalisation, 2025-10-07): `uvx hatch test -- -q` (433 passed, 0 failed, 1 skipped) completed in 8.75s before harness timeout at 13.7s.
+- /report verification (current request, 2025-10-07): `uvx hatch test -- -q` (431 passed, 0 failed, 1 skipped) completed in 7.87s before harness timeout at 12.6s.
+- Regression verification (Phase 5 reliability polish, 2025-10-07): `uvx hatch test` (431 passed, 0 failed, 1 skipped) completed in 8.66s after stub loader guards and config fallback logging.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (426 passed, 0 failed, 1 skipped) completed in 7.93s confirming suite health before cleanup.
+- Regression verification (provider readiness decode guards, 2025-10-07): `uvx hatch test` (426 passed, 0 failed, 1 skipped) completed in 8.33s before harness timeout at 13.3s after adding decode/error guardrails.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (423 passed, 0 failed, 1 skipped) completed in 8.09s before harness timeout at 13.3s.
+- Regression verification (Phase 33 example fixture safety, 2025-10-07): `uvx hatch test` (423 passed, 0 failed, 1 skipped) completed in 8.97s after hardening stub directory and UTF-8 handling in examples.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (419 passed, 0 failed, 1 skipped) completed in 7.87s confirming suite health before cleanup.
+- Regression verification (Phase 32 polish, 2025-10-07): `uvx hatch test` (419 passed, 0 failed, 1 skipped) completed in 8.39s confirming config/show and example flag updates.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (417 passed, 0 failed, 1 skipped) completed in 8.09s, confirming suite health before cleanup.
+- Regression verification (CLI resilience, 2025-10-07): `uvx hatch test` (417 passed, 0 failed, 1 skipped) completed in 8.71s before harness timeout at 13.7s after adding cancellation and BrokenPipeError guards.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (409 passed, 0 failed, 1 skipped) completed in 7.72s before harness timeout at 12.9s.
+- Regression verification (Phase 30 wrap-up, 2025-10-07): `uvx hatch test` (409 passed, 0 failed, 1 skipped) completed in 8.67s after API key trimming, CLI sanitisation, and fixture text guards.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (403 passed, 0 failed, 1 skipped) completed in 9.28s confirming suite health before cleanup.
+- Regression verification (current iteration, 2025-10-07): `uvx hatch test` (403 passed, 0 failed, 1 skipped) completed in 8.58s validating fixture consistency and readiness trimming updates.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (398 passed, 0 failed, 1 skipped) completed in 8.02s confirming suite health ahead of cleanup.
+- Regression verification (current iteration, 2025-10-07): `uvx hatch test` (398 passed, 0 failed, 1 skipped) completed in 8.78s (harness timeout after success) validating Phase 28 quality updates.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (345 passed, 0 failed) completed in 8.33s confirming suite health before cleanup.
+- Example robustness sweep (2025-10-07): `uvx hatch test tests/test_examples.py` (8 passed, 0 failed) finished in 6.56s after expanding fixture resilience coverage.
+- Regression verification (2025-10-07): `uvx hatch test` (345 passed, 0 failed) completed in 8.78s validating recorded example improvements.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (343 passed, 0 failed) completed in 9.89s confirming suite health after full regression sweep.
+- Provider reliability sweep (2025-10-07): `uvx hatch test` (343 passed, 0 failed) completed in 9.43s after Codex/Gemini/Cloud Code edge-case hardening.
+- /report verification (current run, 2025-10-07): `uvx hatch test` (336 passed, 0 failed) completed in 9.06s verifying full suite health prior to cleanup.
+- Config CLI regression verification (2025-10-07): `uvx hatch test` (336 passed, 0 failed) completed in 9.26s after refreshing config init/show/get state handling.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (333 passed, 0 failed) completed in 7.25s confirming suite stability before cleanup.
+- Phase 24 config reliability verification (2025-10-07): `uvx hatch test` (333 passed, 0 failed) in 10.17s after CLI config normalisation and TOML writer swap.
+- /report verification (current iteration, 2025-10-07): `uvx hatch test` (329 passed, 0 failed) completed in 9.04s confirming suite health before cleanup.
+- Quality maintenance sweep (current iteration, 2025-10-07): `uvx hatch test` (329 passed, 0 failed) completed in 8.93s before CLI timeout at 14s after adding config validation guards.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (326 passed, 0 failed) completed in 10.88s before CLI timeout at 17s; suite finished successfully.
+- Regression verification (current iteration, 2025-10-07): `uvx hatch test` (326 passed, 0 failed) in 10.53s confirming config validation guardrails remain green.
+- /report verification (current iteration, 2025-10-07): `uvx hatch test` (323 passed, 0 failed) in 7.27s confirming suite health before cleanup.
+- Phase 22 targeted CLI validators (2025-10-07): `uvx hatch test tests/test_cli_validators.py` (10 passed, 0 failed) locking alias + parameter guard rails.
+- Phase 22 fixture integrity sweep (2025-10-07): `uvx hatch test tests/test_fixture_integrity.py` (11 passed, 0 failed) enforcing schema + placeholder checks.
+- Phase 22 example replay coverage (2025-10-07): `uvx hatch test tests/test_examples.py` (6 passed, 0 failed; slowest 2.93s) verifying stub + guidance flows.
+- Phase 22 regression sweep (2025-10-07): `uvx hatch test` (323 passed, 0 failed) in 7.66s confirming suite stability post-coverage.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (323 passed, 0 failed) in 7.64s confirming suite health post-instructions.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (318 passed, 0 failed) finished in 8.01s before CLI timeout at 13s; reruns unnecessary as suite completed successfully.
+- Fixture schema guard (2025-10-07): `uvx hatch test tests/test_fixture_integrity.py` (11 passed, 0 failed) validating dotted-path diagnostics.
+- Example reliability sweep (2025-10-07): `uvx hatch test tests/test_examples.py` (6 passed, 0 failed, harness timeout post-completion at 11.5s) confirming stub/error guidance handling.
+- Regression verification (2025-10-07): `uvx hatch test` (323 passed, 0 failed, command cutoff at 14s after suite completion in 8.77s) validating global health post-quality polish.
+- Phase 20 contract polish (2025-10-07): `uvx hatch test` (318 passed, 0 failed) in 8.41s after fixture schema validation, Cloud readiness parsing, and provider error surfacing.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (312 passed, 0 failed) in 7.38s confirming suite health before cleanup.
+- Streaming extraction hardening (2025-10-07): `uvx hatch test` (312 passed, 0 failed) in 8.17s validating the new CLI extraction guards.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (307 passed, 0 failed) in 7.58s confirming suite health before cleanup.
+- Reliability patch verification (2025-10-07): `uvx hatch test` (307 passed, 0 failed) in 7.78s after adding CLI empty-response hardening and readiness regression coverage.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (303 passed, 0 failed) in 7.28s confirming suite health after latest instructions.
+- /report verification (current request, 2025-10-07): `uvx hatch test` (297 passed, 0 failed) in 7.30s confirming suite health prior to cleanup.
+- Config & diagnostics polish (2025-10-07): `uvx hatch test` (297 passed, 0 failed) in 7.30s after tightening config validation and readiness guidance.
+- Phase 17 hardening (2025-10-07): `uvx hatch test` (303 passed, 0 failed) in 7.94s covering config canonicalisation, Cloud service-account readiness, and provider-map preservation.
+
+### Enhanced - CLI Empty Response Handling (2025-10-07)
+- Hardened `uutel complete` with `_extract_completion_text` to detect empty LiteLLM payloads and return a friendly guidance banner instead of raising `IndexError` or placeholder warnings.
+- Added regression tests for empty `choices` and missing message content so future provider changes cannot reintroduce the crash.
+- Documented the update in PLAN.md/TODO.md and captured verification run (`uvx hatch test`, 307 passed) for traceability.
+
+### Enhanced - Config CLI Disk Sync (2025-10-07)
+- Reloaded on-disk configuration after `uutel config init`, `uutel config show`, and `uutel config get` to keep CLI state aligned with file edits in the same process.
+- Added targeted regression tests covering init refresh, show output rehydration, and get retrieval to guard against future regressions.
+- Updated PLAN.md/TODO.md to mark Phase 25 complete and captured verification run (`uvx hatch test`, 336 passed).
+
+### Tests - 2025-10-06
+- Guardrail sweep (2025-10-06): `uvx hatch test` (292 passed, 0 failed) in 7.72s validating CLI readiness + placeholder enforcement and stricter parameter validation.
+- /report verification (current request, 2025-10-06): `uvx hatch test` (287 passed, 0 failed) in 6.87s confirming suite health after latest instructions.
+- /report verification (2025-10-06): `uvx hatch test` (268 passed, 0 failed) in 7.7s covering full suite prior to cleanup.
+- Config & CLI reliability hardening (2025-10-06): `uvx hatch test` (279 passed, 0 failed) in 8.21s after adding config/validator/placeholder guard suites.
+- /report verification (post-hardening, 2025-10-06): `uvx hatch test` (279 passed, 0 failed) in 9.01s confirming clean state after documentation updates.
+
+### Tests - 2025-10-01
+- CLI config guardrail sweep (2025-10-01): `uvx hatch test` (287 passed, 0 failed) in 9.60s covering new zero-token validation tests.
+- /report verification (current iteration, 2025-10-01): `uvx hatch test` (284 passed, 0 failed) in 8.04s confirming suite health prior to cleanup.
+- Regression sweep (2025-10-01): `uvx hatch test` (284 passed, 0 failed) in 7.98s after refreshing fixtures and alias coverage.
+- /report verification (2025-10-01): `uvx hatch test` (279 passed, 0 failed) in 11.93s confirming clean suite prior to cleanup.
+- /report verification (2025-10-01): `uvx hatch test` (262 passed, 0 failed) in 7.6s covering examples live-mode toggle and CLI reliability.
+- Quality sweep (2025-10-01): `uvx hatch test` (268 passed, 0 failed) in 8.5s after adding CLI placeholder guard and fixture integrity checks.
+- Gemini/Codex hardening regression: `uvx hatch test` (262 passed, 0 failed) validating CLI JSON parsing updates and OpenAI fallback coverage.
+- `/report` verification (latest iteration): `uvx hatch test` (259 passed, 0 failed) in 7.7s, covering new example replay regressions introduced this cycle.
+- `/report` verification: `uvx hatch test` (242 passed, 0 failed) refreshed to confirm suite health before cleanup.
+- Reliability touch-ups: `uvx hatch test tests/test_cli.py::TestCLIProviderReadiness` (7 passed), `uvx hatch test tests/test_gemini_provider.py::test_cli_streaming_yields_incremental_chunks` (1 passed), `uvx hatch test tests/test_codex_provider.py::TestCodexUUCompletion::test_completion_returns_credential_guidance_on_401 tests/test_codex_provider.py::TestCodexUUAsyncCompletion::test_acompletion_returns_credential_guidance_on_401` (2 passed), followed by full `uvx hatch test` (248 passed).
+
+### Tests - 2025-10-03
+- Re-ran `/report` verification on 2025-10-03: `uvx hatch test` (235 passed) ensuring current Codex/CLI updates remain stable post-cleanup.
+- Ran `uvx hatch test` (235 passed) while executing `/report` workflow; no failures or xfails observed.
+- Targeted provider regression suites: `uvx hatch test tests/test_cli.py` (33 passed), `uvx hatch test tests/test_examples.py` (1 passed), and `uvx hatch test tests/test_codex_provider.py` (21 passed) covering new readiness checks, example replay, and SSE event handling.
+- Full regression post-Phase 9 updates: `uvx hatch test` (242 passed) confirming readiness checks, example replay, and streaming parser changes integrate cleanly.
+- Added targeted suites `uvx hatch test tests/test_codex_provider.py` and `uvx hatch test tests/test_cli.py` validating async Codex path and CLI verbose flag update.
+
+### Tests - 2025-10-04
+- `/report` verification: `uvx hatch test` (254 passed, 0 failed) confirming current workspace state prior to cleanup.
+- Targeted regression runs while iterating: `uvx hatch test tests/test_examples.py`, `uvx hatch test tests/test_cli.py::TestCLIDiagnostics::test_diagnostics_reports_ready_and_missing`, and `uvx hatch test tests/test_codex_provider.py::{TestCodexUUCompletion::test_completion_http_errors_emit_guidance,TestCodexUUStreaming::test_streaming_status_error_maps_to_guidance}`.
+
+### Tests - 2025-10-05
+- `/report` verification (2025-10-05): `uvx hatch test` (254 passed, 0 failed) to reconfirm suite health before cleanup.
+- Reliability hardening sweep: `uvx hatch test tests/test_codex_provider.py::TestCodexAuthLoader` (3 passed), `uvx hatch test tests/test_gemini_provider.py::test_cli_streaming_raises_on_fragmented_error` (1 passed), `uvx hatch test tests/test_cli.py -k gcloud_config` (1 passed), followed by full `uvx hatch test` (259 passed).
+
+### Fixed - 2025-10-05
+- Codex provider now recognises both legacy `tokens.*` and current top-level Codex CLI `auth.json` layouts, preventing false "missing access token" errors after running `codex login`.
+- Gemini CLI streaming output buffers fragmented `{ "error": ... }` payloads and raises a single actionable `UUTELError` instructing users to refresh credentials when authentication fails mid-stream.
+- Cloud Code readiness checks fall back to the gcloud default project configuration and surface an informational hint instead of hard-failing when `CLOUD_CODE_PROJECT` env vars are absent.
+
+### Changed - 2025-10-06
+- Gemini CLI completion now extracts the final JSON payload from stdout, tolerating banner/progress lines and ANSI escape codes while preserving structured usage data.
+- Gemini CLI streaming parses JSONL `text-delta`/`finish` events into `GenericStreamingChunk`s, retaining raw-text fallback for legacy output and keeping error aggregation intact.
+- Codex provider OpenAI API-key fallback now has regression coverage confirming request headers/payload honour sampling parameters and target `/chat/completions`.
+
+### Added - 2025-10-04
+- Introduced `uutel diagnostics` CLI command to summarise alias readiness and surface credential/tooling guidance before issuing live requests.
+- Enhanced `examples/basic_usage.py` with `UUTEL_LIVE_EXAMPLE` / `UUTEL_LIVE_FIXTURES_DIR` toggles so the walkthrough can perform real provider calls or consume stubbed live fixtures.
+- Expanded Codex error handling to map HTTP 403/429/5xx responses (including streaming paths) to actionable messages, honouring `Retry-After` hints and aligning troubleshooting guidance.
+
+### Changed - 2025-10-03
+- CLI verbose mode now toggles `LITELLM_LOG` instead of mutating `litellm.set_verbose`, eliminating deprecation warnings and gaining unit coverage.
+- Codex async completion path now issues real async HTTP calls via httpx `AsyncClient`, preventing event-loop blocking and covered by new async unit test.
+- Provider fixtures, tests, and documentation snippets updated to use recorded Codex sorting snippet rather than placeholder "mock response" phrasing.
+- Added CLI provider readiness preflight guard so `uutel test` surfaces credential/CLI issues before hitting providers, with coverage for Codex and Claude scenarios.
+- Reworked `examples/basic_usage.py` to replay recorded completions for Codex, Claude, Gemini, and Cloud Code, paired with a subprocess regression test to keep output stable.
+- Extended Codex streaming handler to capture `response.function_call_name.delta` and `response.tool_call_arguments.delta` sequences, ensuring tool call metadata survives SSE replay.
+
+### Changed - 2025-10-01
+- CLI readiness checks now detect missing Cloud Code project IDs and OAuth/API-key credentials, surfacing guidance before issuing provider calls.
+- Gemini CLI streaming adapter emits per-line `GenericStreamingChunk`s instead of collapsing output, improving downstream streaming UX.
+- Codex provider translates HTTP 401 responses into actionable credential guidance for sync and async completions.
 
 ### Added - Real Provider Implementations (#201)
 Replaced all mock provider implementations with real integrations:
@@ -78,6 +239,11 @@ Replaced all mock provider implementations with real integrations:
 - CLI `list_engines` now surfaces provider-specific credential requirements.
 - `examples/basic_usage.py` replays the deterministic Claude fixture and prints commands required for live CLAUDE runs.
 - README examples section points to the fixture replay and enumerates the installation/login steps for enabling live Claude streaming.
+
+### Enhanced - CLI Aliases & Recorded Examples (2025-10-02)
+- Synced CLI engine listings/tests with alias shortcuts (`codex`, `claude`, `gemini`, `cloud`) and replaced pytest-asyncio usage in Codex delegation tests with `asyncio.run` wrappers to keep the suite plugin-free.
+- Rebuilt `examples/basic_usage.py` around recorded completions for all providers and refreshed README guidance to highlight alias usage and live-run instructions.
+- Tests: `uvx hatch test` (235 passed) validating CLI updates, Codex delegation changes, and example output adjustments.
 
 ### Testing
 - ✅ 2025-09-30: `uvx hatch test` (221 passed, 4 xfailed placeholders) after Gemini provider integration
@@ -798,3 +964,7 @@ Replaced all mock provider implementations with real integrations:
 - Initial project setup
 - Basic package structure with hatch configuration
 - Test infrastructure setup
+### Enhanced - Recorded Example Robustness (2025-10-07)
+- Normalised structured OpenAI/Gemini content in `examples/basic_usage.extract_recorded_text`, preventing placeholder lists from reaching CLI output.
+- Added token fallback logic that sums component counts when aggregate totals are missing, keeping usage metrics non-zero in documentation runs.
+- Introduced regression tests covering structured content flattening, fallback token totals, and fixture alias alignment to guard documentation drift.

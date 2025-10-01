@@ -17,25 +17,27 @@ pip install uutel
 
 # Single-turn completions
 uutel complete --prompt "Explain Python async/await"
-uutel complete --prompt "Write a hello world in Rust" --engine my-custom-llm/codex-mini
+uutel complete --prompt "Write a hello world in Rust" --engine codex
+uutel complete --prompt "List three debugging rituals" --engine claude
 
 # List available engines
 uutel list_engines
 
 # Test engine connectivity
-uutel test --engine my-custom-llm/codex-large
+uutel test --engine codex
 
 # Get help
 uutel help
 ```
 
-## Current Status: Foundation Complete ✅
+## Current Status: Providers Live ✅
 
-UUTEL currently provides a **production-ready foundation** with comprehensive tooling and infrastructure. The core framework is complete and ready for provider implementations.
+UUTEL now includes live Codex, Claude Code, Gemini CLI, and Cloud Code providers wired through LiteLLM. The universal unit foundation stays in place, but the default CLI commands exercise real vendor APIs once credentials are configured.
 
 ### What's Built and Working
 
 - **⚡ Command-Line Interface**: Complete Fire CLI with `uutel` command for instant completions
+- **🤖 Provider Coverage**: Live Codex, Claude Code, Gemini CLI, and Cloud Code adapters with sync/async completions and streaming.
 - **🏗️ Core Infrastructure**: Complete `BaseUU` class extending LiteLLM's `CustomLLM`
 - **🔐 Authentication Framework**: Flexible `BaseAuth` system with secure credential handling
 - **🛠️ Tool Calling**: 5 OpenAI-compatible utilities for function calling workflows
@@ -46,14 +48,12 @@ UUTEL currently provides a **production-ready foundation** with comprehensive to
 - **📚 Examples**: Working demonstrations of all capabilities
 - **🔧 Developer Experience**: Modern tooling with ruff, mypy, pre-commit ready
 
-### Planned Providers (Phase 2)
+### Provider Highlights
 
-The foundation supports these upcoming provider implementations:
-
-- **ClaudeCodeUU**: OAuth-based Claude Code provider with MCP tool integration
-- **GeminiCLIUU**: Multi-auth Gemini CLI provider (API keys, Vertex AI, OAuth)
-- **CloudCodeUU**: Google Cloud Code provider with service account authentication
-- **CodexUU**: OpenAI Codex provider with ChatGPT backend integration
+- **CodexUU**: Calls ChatGPT Codex backend when `codex login` tokens exist, or falls back to OpenAI API keys with tool-call support.
+- **ClaudeCodeUU**: Streams JSONL events from `@anthropic-ai/claude-code`, handling cancellation, tool filtering, and credential guidance.
+- **GeminiCLIUU**: Adapts Google Generative AI via API keys or the `gemini` CLI with retry, streaming, and tool functions.
+- **CloudCodeUU**: Talks to Google Cloud Code endpoints using shared Gemini OAuth credentials and project-aware readiness checks.
 
 ## Key Features
 
@@ -101,7 +101,7 @@ UUTEL provides a comprehensive command-line interface with four main commands:
 uutel complete --prompt "Explain machine learning"
 
 # Specify engine
-uutel complete --prompt "Write Python code" --engine my-custom-llm/codex-mini
+uutel complete --prompt "Write Python code" --engine codex
 
 # Enable streaming output
 uutel complete --prompt "Tell a story" --stream
@@ -124,7 +124,17 @@ uutel list_engines
 uutel test
 
 # Test specific engine
-uutel test --engine my-custom-llm/codex-large --verbose
+uutel test --engine codex --verbose
+```
+
+#### `uutel diagnostics` - Check Provider Readiness
+
+```bash
+# Summarise credential and tooling status for each alias
+uutel diagnostics
+
+# Combine with verbose logging for deeper troubleshooting
+LITELLM_LOG=DEBUG uutel diagnostics
 ```
 
 #### `uutel help` - Get Help
@@ -136,6 +146,22 @@ uutel help
 # Command-specific help
 uutel complete --help
 ```
+
+### Configuration File
+
+Persist defaults in `~/.uutel.toml` when you want repeatable CLI behaviour:
+
+```toml
+# UUTEL Configuration
+
+engine = "my-custom-llm/codex-large"
+max_tokens = 500
+temperature = 0.7
+stream = false
+verbose = false
+```
+
+Run `uutel config init` to create the file automatically or edit the snippet above.
 
 ### Troubleshooting CLI Issues
 
@@ -167,7 +193,7 @@ uutel list_engines
 uutel test --verbose
 
 # Use default engine
-uutel complete --prompt "test"  # Omit --engine to use default
+uutel complete --prompt "test"  # Defaults to codex when you omit --engine
 ```
 
 #### Authentication Setup
@@ -354,7 +380,9 @@ uutel test --verbose
 python examples/basic_usage.py
 ```
 Demonstrates core infrastructure, authentication framework, error handling, and utilities.
-Includes an offline replay of the recorded Claude Code CLI fixture so you can preview responses without installing the CLI.
+Includes an offline replay of recorded provider fixtures so you can preview responses without installing any CLIs.
+Set `UUTEL_LIVE_EXAMPLE=1` to trigger live requests when credentials are available, or point
+`UUTEL_LIVE_FIXTURES_DIR` at a directory of JSON payloads to run deterministic stubbed "live" replays.
 
 #### Claude Code Fixture Replay
 ```bash
@@ -364,7 +392,7 @@ Shows the deterministic Claude Code fixture output and provides the exact comman
 
 1. `npm install -g @anthropic-ai/claude-code`
 2. `claude login`
-3. `uutel complete --engine uutel/claude-code/claude-sonnet-4 --stream`
+3. `uutel complete --engine claude --stream`
 
 #### Tool Calling Example
 ```bash

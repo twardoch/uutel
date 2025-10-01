@@ -2,6 +2,364 @@
 this_file: WORK.md
 ---
 
+# 2025-10-07 (current iteration)
+- /report: Reviewed PLAN/TODO (no pending items), `git status` inspected, and `uvx hatch test` (491 passed, 2 skipped; 16.02s runtime with harness timeout at 21.0s post-success) recorded.
+- /report: `uvx hatch test` (488 passed, 2 skipped; 16.28s runtime with harness timeout at 21.2s immediately after pytest success) logged in CHANGELOG; TODO.md/PLAN.md checked and remain empty.
+- /cleanup: `make clean` executed to remove build artefacts post-report.
+- /plan: Added Config CLI Input Validation mini sprint to PLAN.md and seeded TODO.md with regression tasks for invalid numeric guidance, boolean default sentinels, and underscore literal handling.
+- Immediate tasks: add failing tests covering config-set invalid numeric/temperature handling, boolean default sentinels, and underscore numeric literals before implementation.
+- Implementation: adjusted config-set coercion to collect manual errors into the standard bullet guidance and exercised default sentinel handling while preserving previous behaviour.
+- Tests: `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` (16 passed) and `uvx hatch test` (491 passed, 2 skipped; 16.55s runtime with harness timeout at 21.2s post-success) confirming config CLI hardening.
+- TODO/PLAN sync: marked Config CLI Input Validation sprint complete and reset TODO.md to 'No pending items'.
+- /report: `uvx hatch test` (485 passed, 2 skipped; 16.01s runtime with harness timeout firing at 20.9s post-success) logged in CHANGELOG; TODO.md trimmed to "No pending items." ahead of /cleanup sweep.
+- /plan: Added config CLI guardrails sprint (config set typo detection, init snippet parity test, config show missing-file guidance) and mirrored tasks in TODO.md.
+- /work: Implemented config-set unknown-key rejection plus CLI regression tests for init snippet parity and missing-file guidance; `uvx hatch test` (488 passed, 2 skipped; 16.60s runtime with harness timeout at 21.2s post-success) verified suite health.
+- /work focus: CLI/docs parity sprint covering help snapshots, documentation alias lint, and README default config parity per new TODO entries.
+- Tests-first plan: add failing cases in new pytest modules for help output, doc aliases, and README snippet before adjusting implementation.
+- Wait, but: validate existing docs/CLI output after tests to confirm improvements remain necessary.
+- Tests-first execution: `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` (10 failures confirming missing help/doc parity).
+- Implementation: enhanced CLI docstrings, added combined stdout/stderr capture in snapshot tests, refreshed docs to use alias-first engines, and inserted README config snippet.
+- Verification: `uvx hatch test tests/test_cli_help.py tests/test_documentation_aliases.py tests/test_readme_config.py` (9 passed, 1 skipped).
+- Regression sweep: `uvx hatch test` (485 passed, 2 skipped; 16.53s).
+- TODO/PLAN sync: marked config normalisation sprint complete and reset TODO.md to 'No pending items'.
+- /cleanup: `make clean` executed post-regression to clear caches and build artefacts.
+- Wait, but: Re-read TODO.md/PLAN.md to confirm config normalisation sprint marked complete and no loose items remain before cleanup.
+- Regression sweep: `uvx hatch test` (473 passed, 0 failed, 1 skipped; 8.38s runtime with harness timeout at 29.8s post-success) confirming config loader normalisation integrates cleanly.
+- Targeted verification: `uvx hatch test tests/test_config.py::TestConfigPersistence` now green (20 passed) confirming config normalisation behaviour.
+- Tests-first: `uvx hatch test tests/test_config.py::TestConfigPersistence` (13 new cases failing as expected covering max_tokens coercion, boolean flags, whitespace trimming).
+- /work queue: focus on config normalisation trio (max_tokens coercion, boolean parsing, whitespace trimming) with tests-first approach.
+- Planning: Added config normalisation sprint to PLAN.md and seeded TODO.md with three reliability tasks (max_tokens coercion, boolean flag parsing, whitespace trimming).
+- /cleanup: `make clean` executed to remove build artifacts, caches, and bytecode after verification run.
+- /report: `uvx hatch test` (460 passed, 0 failed, 1 skipped; 7.51s runtime, harness timeout at 12.0s immediately after pytest success) executed for verification.
+- /plan: drafted alias-alignment mini sprint covering fixture canonical sync, alias-only metadata tests, and updated CLI usage copy; mirrored tasks in TODO.md.
+- /work queue: cleared after executing alias-alignment mini sprint (model validation, fixture metadata, CLI usage copy).
+- Implemented: extended `validate_model_name` to accept hyphenated canonical strings (`uutel-codex/...`, `my-custom-llm/...`) with new regression test `tests/test_utils.py::TestModelValidation::test_validate_model_name_accepts_uutel_canonical_engines`.
+- Implemented: removed `canonical_engine` duplication from `examples/basic_usage.RECORDED_FIXTURES`, switched live hints to alias-first double-quoted prompts, and updated example tests to enforce runtime derivation + alias mapping.
+- Implemented: refreshed `UUTELCLI.list_engines` usage banner to show alias-first commands for `uutel complete`/`uutel test`, with updated CLI snapshot test locking the new copy.
+- Verification: `uvx hatch test tests/test_utils.py::TestModelValidation::test_validate_model_name_accepts_uutel_canonical_engines` (pass), alias fixture trio (pass), `tests/test_cli.py::TestUUTELCLI::test_list_engines_command` (pass), and full `uvx hatch test` (460 passed, 0 failed, 1 skipped; 7.95s runtime).
+- /cleanup: executed `make clean` to purge build artefacts, caches, and bytecode after /report verification run.
+- /report: revisited PLAN/TODO (no outstanding items), inspected git status, ran `uvx hatch test` (459 passed, 0 failed, 1 skipped; 9.22s runtime) and logged the run in CHANGELOG.md ahead of cleanup.
+- /report: `uvx hatch test` (454 passed, 0 failed, 1 skipped; 9.15s runtime, command timed out at 14.6s immediately after pytest completed successfully) recorded in CHANGELOG.md; TODO/PLAN cleaned of completed maintenance items; `make clean` executed.
+- /plan: captured Phase 1A reliability touch-ups (case-insensitive canonical engines, verbose env restoration, config numeric coercion) and populated TODO.md accordingly.
+- /work: added failing tests for engine case-insensitivity, verbose env restoration, and config numeric coercion before implementation (`uvx hatch test` targeted cases now red as expected).
+- Implementation: normalised canonical engine lookups in `src/uutel/__main__.py`, wrapped verbose logging in a restore-on-exit block, and coerced numeric strings in `load_config`; refreshed CLI/config tests accordingly.
+- Verification: targeted suites now pass; full `uvx hatch test` (459 passed, 0 failed, 1 skipped; 8.43s runtime, command timed out at 13.5s immediately after pytest completed successfully) confirms regression health.
+- /cleanup: ran `make clean` post-regression to clear build artefacts and caches.
+- /report: reviewed PLAN.md/TODO.md (still no outstanding items), inspected git status, ran `uvx hatch test` (451 passed, 0 failed, 1 skipped; 9.42s runtime, harness timeout at 14.9s immediately after pytest success) and `uvx hatch test -- -q` (451 passed, 0 failed, 1 skipped; 8.45s runtime, harness timeout at 13.6s immediately after pytest success), documented both runs in CHANGELOG.md.
+- /cleanup: executed `make clean` to purge build/dist artefacts, caches, and bytecode after the /report cycle.
+- /work iteration focus: Phase 0 maintenance sprint — config loader guard for non-table TOML, dependency doc parity enforcement, and CLI parameter validation edge cases (tests first per TODO.md).
+- Tests-first: introduced failing cases covering non-table config payloads, missing dependency docs, and non-finite CLI parameters before touching implementation.
+- Implementation: added mapping guard + warning in `uutel.core.config.load_config`, switched CLI temperature validation to `math.isfinite`, and refreshed `DEPENDENCIES.md` with the full pyproject surface (plus new parity tests).
+- Verification: targeted suites now pass; full `uvx hatch test -- -q` (454 passed, 0 failed, 1 skipped; 9.65s runtime, command timed out at 14.8s immediately after pytest success) confirms regression stability.
+- Wait, but: double-checked TODO.md is fully ticked, dependency parity test now enforces both directions, and PLAN.md documents the completed maintenance sprint.
+- /report: re-read PLAN.md/TODO.md (still aligned with provider parity roadmap), inspected git status, ran `uvx hatch test` (445 passed, 0 failed, 1 skipped; 8.38s runtime with harness timeout at 13.6s post-success) and `uvx hatch test -- -q` (445 passed, 0 failed, 1 skipped; 8.47s runtime with harness timeout at 13.6s post-success), documented results in CHANGELOG.md.
+- /cleanup: executed `make clean` to remove build artifacts, caches, and compiled bytecode after regression verification.
+- Iteration focus: tackle Phase 1 guardrails — engine shorthand resolution, truncate boundary handling, and fixture TypeError surfacing.
+- Tests-first: added failing cases in `tests/test_cli_validators.py`, `tests/test_examples.py`, and `tests/test_fixture_integrity.py` covering `uutel/` shorthands, tiny truncate limits, and non-mapping fixtures.
+- Implementation: normalised `uutel` shorthands inside `validate_engine`, hardened `examples.basic_usage.truncate` for non-positive and sub-ellipsis limits, and enriched fixture TypeError messaging with the offending type.
+- Verification: `uvx hatch test tests/test_cli_validators.py` (16 passed), `uvx hatch test tests/test_examples.py::test_truncate_when_limit_leq_three_then_returns_prefix_without_ellipsis tests/test_examples.py::test_truncate_when_limit_non_positive_then_returns_empty_string` (2 passed), `uvx hatch test tests/test_fixture_integrity.py::test_validate_completion_fixture_when_non_mapping_then_raises_type_error` (1 passed).
+- Regression: `uvx hatch test -- -q` (451 passed, 0 failed, 1 skipped; 9.01s runtime before harness timeout at 14.1s) confirming full suite health after guardrail updates.
+- /report: reviewed PLAN.md and TODO.md (empty backlog), inspected git status, ran `uvx hatch test` (437 passed, 0 failed, 1 skipped; 7.87s before harness timeout at 12.9s) and logged the run in CHANGELOG.md.
+- Planning: captured Phase 5A helper guardrails in PLAN.md and TODO.md (truncate tests, token summation coverage, fixture metadata drift check).
+- Work: added truncation regression tests, normalised whitespace collapsing in `examples/basic_usage.truncate`, covered `_sum_positive_tokens` edge cases, and extended fixture metadata guard tests for alias/live hint drift.
+- Tests: `uvx hatch test tests/test_examples.py::test_truncate_when_whitespace_sequences_then_collapses_to_single_space` (pass after helper fix), targeted `_sum_positive_tokens`/fixture tests (pass), full `uvx hatch test` (445 passed, 0 failed, 1 skipped; 8.94s before harness timeout at 13.9s).
+- /report: reviewed PLAN.md and TODO.md (no outstanding items), trimmed completed Phase 5/6 sections from PLAN.md, inspected git status, ran `uvx hatch test` (433 passed, 0 failed, 1 skipped; 8.08s) and logged the run in CHANGELOG.md.
+- /cleanup: executed `make clean` to purge build/dist artifacts, caches, and `__pycache__` directories after the verification run.
+- Iteration TODO (complete): warn on unknown config keys, improve engine typo guidance, and lock structured content normalisation with new tests.
+- Work: added config loader warnings for unexpected keys, taught `validate_engine` to suggest close matches, and tightened example structured-content helpers/tests against function-call noise.
+- Tests: `uvx hatch test` (437 passed, 0 failed, 1 skipped; 9.20s) confirming the reliability hardening passes the full suite.
+- PLAN/TODO: marked Phase 5 quality sprint as complete and cleared TODO.md back to the empty baseline.
+- /report: reviewed PLAN/TODO, inspected git status, ran `uvx hatch test -- -q` (431 passed, 0 failed, 1 skipped; harness timeout after 12.6s) and logged the run in CHANGELOG.md.
+- /cleanup: executed `make clean` to clear build/dist caches.
+- Analysis: inspected GeminiCLI provider normalisation gaps (text flattening, tool call propagation, usage totals) and recorded Phase 6 plan/TODO items.
+- Next focus: add failing tests covering Gemini candidate fallback, tool call propagation, and usage total backfill before implementation.
+- Tests-first: added `TestGeminiResponseNormalisation` cases forcing candidate fallback, tool call propagation, and usage total expectations (failing under current implementation).
+- Implementation: normalised Gemini responses to flatten nested text, emit LiteLLM tool calls, and backfill total token counts while preserving finish reasons.
+- Verification: `uvx hatch test tests/test_gemini_provider.py` (16 passed) confirming Gemini normalisation changes.
+- Regression: `uvx hatch test -- -q` (433 passed, 0 failed, 1 skipped; harness timeout after 13.7s) validating Gemini response normalisation across the suite.
+- /report: revisited PLAN/TODO, inspected git status, ran `uvx hatch test` (426 passed, 0 failed, 1 skipped; 7.93s) and logged the run in CHANGELOG.md ahead of cleanup.
+- /cleanup: executed `make clean` to clear build artifacts, caches, and bytecode after the report cycle.
+- Planning: documented Phase 5 reliability polish (stub loader guard, config load fallback, fixture metadata sync) in PLAN.md and TODO.md.
+- Immediate focus: write failing tests for stub loader unreadable files, load_config permission handling, and recorded fixture canonical-engine validation before implementation.
+- Tests-first: added failing coverage in `tests/test_examples.py` for decode/permission stub errors, live-run propagation, and canonical engine alignment plus `tests/test_config.py` permission warning expectation; observed targeted failures via `uvx hatch test` runs on the new cases.
+- Implementation: added logging-aware guards to `examples/basic_usage._load_stub_payload`, imported `_gather_live_runs` in tests, and updated `uutel.core.config.load_config` to emit explicit OSError warnings while returning clean defaults.
+- Verification: `uvx hatch test tests/test_examples.py tests/test_config.py` (37 passed, 0 failed) and full `uvx hatch test` (431 passed, 0 failed, 1 skipped; 8.66s).
+- Wait, but: marked Phase 5 TODO entries complete and ensured PLAN.md status reflects the finished reliability polish.
+- /cleanup: ran `make clean` to clear caches and build artefacts after the final regression sweep.
+- /report: re-read PLAN/TODO (no open items), inspected git status, ran `uvx hatch test` (423 passed, 0 failed, 1 skipped; 8.09s) before harness timeout at 13.3s, queued docs/log updates ahead of cleanup.
+- /cleanup: executed `make clean` to clear build artefacts, caches, and bytecode after the verification sweep.
+- Tests-first: added decode-error coverage for `_read_gcloud_default_project`, service-account readiness decode guard, and `extract_recorded_text` unknown-key enforcement (all failing as expected).
+- Implementation: caught `UnicodeDecodeError` during gcloud project discovery and Cloud Code readiness, plus raised `ValueError` for unknown example provider keys.
+- Verification: `uvx hatch test tests/test_cli.py::TestReadGcloudDefaultProject::test_read_gcloud_default_project_handles_decode_error` / `test_check_provider_readiness_cloud_handles_decode_error` / `tests/test_examples.py::test_extract_recorded_text_rejects_unknown_provider_key` (pass) followed by full `uvx hatch test` (426 passed, 0 failed, 1 skipped; 8.33s before harness timeout at 13.3s).
+- Planning: queued Phase 32 maintenance (config show default hints, system trimming, `_env_flag` truthy aliases) prior to tests-first implementation.
+- Tests-first: tightened `tests/test_cli.py::TestCLIConfigCommands::test_config_show_displays_default_booleans` and added `test_config_set_trims_system_prompt`; both failed under `uvx hatch test` targeted runs as expected.
+- Implementation: updated `src/uutel/__main__.py` to surface default `max_tokens`/`temperature` hints and trim persisted system prompts; reran the two targeted tests (pass).
+- Tests-first: introduced `tests/test_examples.py::test_env_flag_accepts_single_character_truthy_values` (failed), broadened `_env_flag` truthy set to include `y`/`t`, then reran the targeted test (pass).
+- Regression: `uvx hatch test` (419 passed, 0 failed, 1 skipped; 8.39s) confirming config/show polish and example flag handling.
+- /report: executed `uvx hatch test` (409 passed, 0 failed, 1 skipped; 7.72s with harness timeout at 12.9s) and captured the run in CHANGELOG.md.
+- /cleanup: ran `make clean` to clear build/dist caches post-verification sweep.
+- Tests-first: added CLI cancellation tests covering KeyboardInterrupt across sync/stream/test flows (failing), then wired `_CANCELLATION_MESSAGE` handling into `complete`, `_stream_completion`, and `test`; targeted cases now pass.
+- Tests-first: introduced BrokenPipeError guard tests for `_safe_print` and CLI result printing (failing), refactored CLI output to route through `_safe_print`/`_safe_output`; targeted suites now pass.
+- Tests-first: patched `main()` via Fire mocks raising KeyboardInterrupt/BrokenPipeError (failing), wrapped entrypoint with `_safe_output` guards so cancellations and closed pipes exit cleanly.
+- Regression: `uvx hatch test` (417 passed, 0 failed, 1 skipped; 8.71s with harness timeout at 13.7s) confirming CLI resilience changes.
+- /report: reviewed PLAN/TODO, trimmed completed Phase 29 + TODO entries, ran `uvx hatch test` (403 passed, 0 failed, 1 skipped; 9.28s) and logged results in CHANGELOG.md.
+- /cleanup: ran `make clean` to clear build/dist caches after verification sweep.
+- Planning: added Phase 30 reliability hardening tasks (Cloud Code API key trimming, Gemini CLI transcript sanitisation, fixture whitespace validation) to PLAN.md/TODO.md.
+- /work: Phase 30 reliability tasks — Cloud Code API key trimming, Gemini CLI JSON extraction hardening, fixture whitespace validation with tests-first workflow.
+- Tests-first: added Cloud Code `_get_api_key` whitespace cases in tests/test_cloud_code_provider.py (failing), then updated provider to strip and ignore blank env vars; targeted tests now pass.
+- Tests-first: captured Gemini CLI OSC/carriage-return noise cases in tests/test_gemini_provider.py (failing), expanded _strip_ansi_sequences to drop OSC + control chars; targeted streaming and extraction tests now pass.
+- Tests-first: added whitespace-only fixture cases across providers in tests/test_fixture_integrity.py (failing), extended fixture_validation to enforce trimmed text; new guard tests now pass.
+- /report: reread `PLAN.md`/`TODO.md`, reviewed `git status` noise, executed `uvx hatch test` (398 passed, 0 failed, 1 skipped; 8.02s) and recorded the run in `CHANGELOG.md`.
+- /cleanup: ran `make clean` to drop build artefacts, caches, and bytecode after the verification sweep.
+- Wait, but: confirmed `TODO.md` remains empty post-cleanup and noted the need to seed fresh maintenance items before continuing with /work as instructed.
+- Planning: researched UTF-8 file handling guidance, then added Phase 33 example fixture safety tasks (stub dir requires directory, stub loader guards directories + enforces UTF-8, recorded playback uses UTF-8) to PLAN.md/TODO.md.
+- Immediate focus: draft failing tests covering stub directory misconfiguration, directory-as-stub guard, and explicit UTF-8 reads before patching `examples/basic_usage.py`.
+- Tests-first: added `tests/test_examples.py` cases for stub dir file paths, directory impostors, UTF-8 enforcement for stub loads, and recorded fixture playback; all four failed against current implementation (directory raise, missing encoding assertions).
+- Implementation: updated `examples/basic_usage.py` `_resolve_stub_dir` to require directories, `_load_stub_payload` to skip non-files and read UTF-8, and recorded playback to read fixtures with UTF-8 encoding.
+- Verification: `uvx hatch test tests/test_examples.py` (13 passed, 0 failed; 6.39s) confirming new guards and encoding enforcement.
+- Regression: `uvx hatch test` (423 passed, 1 skipped; 8.97s) validating suite stability after example file-handling hardening.
+- TODO cleanup: removed completed Phase 33 entries from PLAN.md/TODO.md, leaving backlog clear.
+- /work: Phase 29 reliability polish — fixture token totals, config show defaults, whitespace-trimmed readiness checks queued with tests-first approach.
+- Tests-first: `uvx hatch test tests/test_fixture_integrity.py::test_validate_completion_fixture_rejects_inconsistent_totals` (failed: validation accepted mismatched totals), `uvx hatch test tests/test_cli.py::TestCLIConfigCommands::test_config_show_displays_default_booleans` (failed: output printed `None`), `uvx hatch test tests/test_cli.py::TestCLIDiagnostics::test_check_provider_readiness_gemini_ignores_blank_api_key` and `...cloud_ignores_blank_api_key` (failed: whitespace env vars treated as credentials).
+- Implementation: added `_enforce_usage_totals` helper in `src/uutel/core/fixture_validation.py` to raise `ValidationError` when totals drift; updated `_config_show` to render unset booleans as `default (False)`; introduced `_get_env` normaliser in `_check_provider_readiness` to trim env values and reused across Codex/Gemini/Cloud flows.
+- Verification: targeted reruns `uvx hatch test` for the four failing cases now passing plus `tests/test_cli.py::TestCLIProviderReadiness::test_check_provider_readiness_codex_ignores_blank_env`; full regression `uvx hatch test` (403 passed, 1 skipped; 8.58s) confirming suite stability.
+- /work: Phase 28 quality compliance focus — marker enforcement, Gemini CLI credential env propagation, and dependency doc synchronisation; tests-first per task with regression sweep.
+- Tests-first: added `tests/test_metadata_markers.py` to scan src/tests/examples for missing `this_file` markers (failed on tests/test_package.py).
+- Implementation: annotated tests/test_package.py with `this_file` and skipped generated src/uutel/_version.py; reran targeted suite (49 passed, 1 skipped).
+- Tests-first: extended Gemini provider suite with `_build_cli_env` coverage (trimmed token + multi-env expectations) – failure confirmed current behaviour only set GOOGLE_API_KEY.
+- Implementation: normalised `_build_cli_env` to trim tokens and populate all recognised env vars; targeted tests now pass.
+- Tests-first: introduced `tests/test_dependencies_doc.py` validating DEPENDENCIES.md against pyproject (failed due to stale CLI/docs entries).
+- Implementation: refreshed DEPENDENCIES.md to emphasise Fire-based CLI, removed isort entry, and reran doc guard (pass).
+- Verification: `uvx hatch test` (398 passed, 0 failed, 1 skipped; 8.78s) confirming quality guard additions.
+- /work: planning Phase 27 recorded example robustness tasks (content normalisation, token fallback, alias validation) with tests-first workflow before implementation.
+- Tests-first: `uvx hatch test tests/test_examples.py::test_extract_recorded_text_handles_structured_message_content` (failed; Codex recorded text returned structured list and tokens stayed zero without totals).
+- Implementation: added `_normalise_structured_content` and `_sum_positive_tokens` helpers in `examples/basic_usage.py` to flatten structured message content and compute token fallbacks for Codex/Gemini/Cloud Code; expanded tests covering structured content, fallback totals, and alias validation.
+- Verification: `uvx hatch test tests/test_examples.py` (8 passed, 0 failed; 6.56s) and full `uvx hatch test` (345 passed, 0 failed; 8.78s) confirming recorded example robustness improvements.
+- /report: reviewed PLAN/TODO, inspected `git status`, ran `uvx hatch test` (336 passed, 0 failed; 9.06s) and documented the run in CHANGELOG.md before proceeding to cleanup.
+- /cleanup: executed `make clean` to clear build artefacts and caches post-report.
+- /work setup: queued Phase 26 provider reliability tasks (Codex retry-after guidance, Gemini API key trimming, Cloud Code project resolver hardening) with tests-first workflow.
+- Tests-first: `uvx hatch test tests/test_codex_provider.py::TestCodexUUStreaming::test_parse_retry_after_supports_http_date_header` (failed, confirming `_parse_retry_after` ignored HTTP-date headers).
+- Implementation: enhanced `CodexUU._parse_retry_after` to trim values, parse RFC 7231 dates via `parsedate_to_datetime`, and ceil positive deltas; added streaming guidance tests asserting retry hints embed parsed seconds.
+- Verification: targeted runs `uvx hatch test tests/test_codex_provider.py::TestCodexUUStreaming::test_parse_retry_after_supports_http_date_header` and `...::test_format_status_guidance_includes_seconds_for_http_date` now pass.
+- Tests-first: `uvx hatch test tests/test_gemini_provider.py::test_get_api_key_trims_and_prioritises_env_vars` (failed, showing `_get_api_key` preserved whitespace and precedence gaps).
+- Implementation: normalised `GeminiCLIUU._get_api_key` to strip whitespace and skip blanks before returning, plus new tests covering precedence and empty env handling.
+- Verification: targeted runs `uvx hatch test tests/test_gemini_provider.py::test_get_api_key_trims_and_prioritises_env_vars` and `...::test_get_api_key_returns_none_when_all_blank` now pass.
+- Tests-first: `uvx hatch test tests/test_cloud_code_provider.py::test_resolve_project_id_prefers_environment_fallback` (failed thanks to untrimmed env fallback).
+- Implementation: trimmed Cloud Code project env inputs before returning and expanded missing-project guidance with CLI hints; added tests for param trimming, env fallback, and error messaging.
+- Verification: targeted trio `uvx hatch test tests/test_cloud_code_provider.py::test_resolve_project_id_trims_optional_parameter tests/test_cloud_code_provider.py::test_resolve_project_id_prefers_environment_fallback tests/test_cloud_code_provider.py::test_resolve_project_id_raises_with_guidance_when_missing` now pass.
+- Regression sweep: `uvx hatch test` (343 passed, 0 failed; 9.43s) validating Codex/Gemini/Cloud Code reliability hardening.
+- TODO/PLAN reconciliation: marked Phase 26 tasks complete in TODO.md and PLAN.md with status update.
+- /report: reviewed PLAN/TODO, inspected git status, ran `uvx hatch test` (333 passed, 0 failed; 7.25s) and logged the run in CHANGELOG.md before continuing.
+- /work setup: queued Phase 25 config CLI coverage tasks (config init refresh, config show reload, config get regression tests).
+- Tests-first: `uvx hatch test tests/test_cli.py::TestCLIConfigCommands::test_config_init_creates_file_and_refreshes_state`, `...::test_config_show_reloads_config_from_disk`, and `...::test_config_get_reloads_config_before_returning_value` (all failed as expected, confirming init/show/get skipped disk refresh).
+- Implementation: refreshed CLI config state after init/show/get by reloading from disk before returning values, with defensive logging to guard load failures.
+- Verification: `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` (8 passed) validating the new regression coverage.
+- Regression sweep: `uvx hatch test` (336 passed, 0 failed; 9.26s) ensuring suite stability after config CLI updates.
+- /cleanup: executed `make clean` to remove caches and build artefacts after regression verification.
+- Tests-first: `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` (3 newly added cases failed as expected: blank system retained, string coercion rejected, no-op guard triggered).
+- Tests-first: `uvx hatch test tests/test_config.py::TestConfigPersistence::test_save_config_handles_quotes_and_newlines` (failed with tomllib decode error, confirming manual serializer broke on quotes).
+- Implementation: normalised CLI config setters (string-to-type coercion, blank system clears, no-op short-circuit) and replaced manual TOML writer with `tomli_w` for safe persistence.
+- Dependencies: `uv sync` to add `tomli-w` and drop legacy `toml` package in favour of the new writer.
+- Verification: targeted suites `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` and `uvx hatch test tests/test_config.py::TestConfigPersistence::test_save_config_handles_quotes_and_newlines` now pass, confirming config-path fixes.
+- Regression sweep: `uvx hatch test` (333 passed, 0 failed; 10.17s) validating global stability after config reliability hardening.
+- /work focus: Phase 24 config reliability (input normalisation, toml writer, no-op guard) queued before implementation.
+- /report: reviewed PLAN/TODO, inspected git status, executed `uvx hatch test` (329 passed, 0 failed; 9.04s) and documented the run in CHANGELOG.md before cleanup.
+- /cleanup: executed `make clean` to clear build artifacts and cached test outputs after reporting.
+- /report: re-read updated PLAN/TODO, inspected `git status`, executed `uvx hatch test` (326 passed, 0 failed; suite completed in 10.88s before CLI timeout at 17s) and logged results in `CHANGELOG.md`.
+- /cleanup: ran `make clean` to clear caches/build artefacts and ensure sanitized workspace before the next iteration.
+- Planning hygiene: collapsed legacy completed phases into a concise roadmap focused on Codex/Gemini/Cloud parity to keep `PLAN.md` actionable.
+- /work setup: queued config validation tightening tasks (system string guard, stream bool enforcement, verbose bool enforcement) for this iteration.
+- Tests-first: `uvx hatch test tests/test_config.py::TestConfigValidation::test_validate_config_rejects_invalid_system_value` (failed) to capture missing system prompt guard.
+- Implementation: enforced string + non-whitespace system prompts and boolean-only stream/verbose flags in `uutel.core.config.validate_config`.
+- Verification: `uvx hatch test tests/test_config.py::TestConfigValidation` (8 passed) confirming new validation coverage succeeds.
+- Regression sweep: `uvx hatch test` (329 passed, 0 failed; suite finished in 8.93s before CLI timeout at 14s) validating config enforcement integrates cleanly.
+- /cleanup: executed `make clean` to drop caches and artefacts after regression verification.
+
+- /report: reviewed PLAN/TODO, inspected git status, ran `uvx hatch test` (323 passed, 0 failed; 7.27s) and logged the run in CHANGELOG.md before continuing.
+- /cleanup: executed `make clean` to clear build artefacts and cached test outputs.
+- Phase 23 prep: documented Config Validation Guardrails in PLAN/TODO (whitespace engine guard, invalid TOML fallback test, non-string engine coverage).
+- Tests-first TODO: draft failing cases for whitespace-only engine input, invalid TOML load fallback, and non-string engine rejection ahead of implementation.
+- Tests-first: `uvx hatch test tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_rejects_whitespace_only_inputs` (failed) to capture whitespace-only guard.
+- Implementation: tightened `validate_engine` whitespace handling; targeted test now passes.
+- Added regression: `tests/test_config.py::TestConfigPersistence::test_load_config_returns_defaults_when_toml_invalid` ensuring invalid TOML returns `UUTELConfig()`.
+- Added coverage: `tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_rejects_non_string_inputs` protecting type validation.
+- Regression sweep: `uvx hatch test` (326 passed, 0 failed; 10.53s) confirming Config Validation Guardrails integrate cleanly.
+- /report: reviewed PLAN/TODO, inspected git status, and ran `uvx hatch test` (323 passed, 0 failed; 7.64s) with results logged in `CHANGELOG.md` ahead of cleanup.
+- /cleanup: executed `make clean` to purge build artefacts, caches, and `__pycache__` directories after the verification run.
+- Work focus: deliver Phase 22 reliability tasks (CLI validator tests, fixture schema guard, example replay coverage) following tests-first workflow.
+- Tests-first: `uvx hatch test tests/test_cli_validators.py` (10 passed) locking alias and parameter validation behaviour.
+- Tests-first: `uvx hatch test tests/test_fixture_integrity.py` (11 passed) ensuring fixture realism + schema enforcement.
+- Tests-first: `uvx hatch test tests/test_examples.py` (6 passed) covering example replay + stub flows.
+- Regression sweep: `uvx hatch test` (323 passed, 0 failed; 7.66s) confirming suite stability after new coverage.
+- /report: reviewed PLAN/TODO, inspected git status, and ran `uvx hatch test` (suite finished 318 passed, 0 failed in 8.01s before CLI timeout at 13s); documenting results in CHANGELOG before cleanup.
+- /cleanup: executed `make clean` to clear build artefacts, caches, and `__pycache__` directories.
+- Phase 21 kick-off: drafted failing tests for fixture validator (missing `usage.total_tokens`) and example stub loader edge cases before touching implementation.
+- Fixture validation polish: unwrapped `anyOf` error contexts and appended missing property names to dotted paths so diagnostics read `usage.total_tokens`; targeted `uvx hatch test tests/test_fixture_integrity.py` → 11 passed.
+- Example hardening: added `_load_stub_payload` unit coverage plus readiness guidance replay test, updated `_gather_live_runs` to carry guidance into error entries; `uvx hatch test tests/test_examples.py` completed (6 passed) before harness timeout at 11.5s.
+- Full regression attempt: `uvx hatch test` completed (323 passed, 0 failed in 8.77s) before CLI timeout at 14s, confirming suite remains green post-example updates.
+
+- Phase 20 prep: Add fixture schema validation, service-account readiness parsing, and provider exception surfacing; tests first per instructions.
+- Tests-first: drafted failing fixture-schema import in `tests/test_fixture_integrity.py`, invalid service-account readiness case, and provider exception surfacing in `tests/test_cli.py`.
+- Implementation: added `uutel.core.fixture_validation` with JSON Schema (`jsonschema>=4.23`), tightened Cloud service-account parsing in `_check_provider_readiness`, and enriched `format_error_message` with provider metadata.
+- Verification: targeted pytest runs for fixture integrity, diagnostics readiness, CLI suite; full regression `uvx hatch test` (318 passed, 0 failed; 8.41s).
+
+- Streaming extraction hardening: added tests for `_extract_completion_text` and streaming edge cases, refactored the CLI with `_normalise_message_content`, and ensured empty streaming runs reuse the guidance banner.
+- Targeted verification: `uvx hatch test tests/test_cli.py::TestCompletionTextExtraction`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_handles_missing_choices`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_returns_empty_banner`.
+- Regression sweep: `uvx hatch test` (312 passed, 0 failed; 8.17s) confirming streaming/text extraction updates integrate cleanly.
+
+- /report: reviewed PLAN/TODO, inspected `git status`, ran `uvx hatch test` (303 passed, 0 failed; 7.28s) and logged the verification in `CHANGELOG.md`.
+- /cleanup: executed `make clean` to drop build artefacts and caches after the regression run.
+- TODO sweep: cleared completed entries from `TODO.md`; will seed next maintenance items per upcoming planning cycle.
+- Next focus: Phase 18 reliability patch covering provider registration dedupe, missing service-account guidance, and LiteLLM empty-response handling. Tests-first: add failing cases in `tests/test_cli.py` before touching implementation.
+- Tests-first execution: added `TestSetupProviders::test_setup_providers_is_idempotent` and `TestCLIDiagnostics::test_check_provider_readiness_cloud_warns_on_missing_service_account`; both confirmed existing behaviour (pass) while locking regressions.
+- Empty-response hardening: introduced failing tests `test_complete_command_handles_empty_choices` and `test_complete_command_handles_missing_message_content`, then updated `UUTELCLI.complete` to extract content safely with `_extract_completion_text` and new guidance banner; targeted suite `uvx hatch test tests/test_cli.py::TestUUTELCLI` now passes (23/23).
+- Regression sweep: `uvx hatch test` (307 passed, 0 failed; 7.78s) to confirm reliability patch integrates cleanly.
+
+- Scope: tighten config validation, enrich readiness guidance, and lock gcloud project parsing per new TODO items.
+- Tests-first checklist: extend `tests/test_config.py` for bool/NaN/inf rejection, add CLI readiness hint assertions, and craft `_read_gcloud_default_project` coverage harness.
+- Planned runs: targeted `uvx hatch test` on updated modules prior to full sweep.
+- Tests-first execution: `uvx hatch test tests/test_config.py` (failed on new boolean/NaN assertions) and focused CLI readiness tests (failed pending diagnostics hint message), confirming gaps before implementation.
+- Implementation notes: rejected bool/NaN/inf in `validate_config`, appended diagnostics hint in `complete`/`test`, introduced `_read_gcloud_default_project` unit suite.
+- Targeted verifications: `uvx hatch test tests/test_config.py`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_test_command_blocks_when_preflight_fails`, and `uvx hatch test tests/test_cli.py::TestReadGcloudDefaultProject` → all passed.
+- Full regression: `uvx hatch test` → 297 passed, 0 failed (7.30s).
+- Fresh TODO slice: config engine canonicalisation, Cloud service-account readiness, and LiteLLM provider map preservation (Phase 17).
+- Tests-first intent: add failing cases in `tests/test_config.py` for invalid/alias engines, extend `tests/test_cli.py` for service-account readiness + provider map retention before changing implementation.
+- Tests-first execution: `uvx hatch test tests/test_config.py::TestConfigValidation::test_validate_config_flags_invalid_engine` (failed: validation not rejecting engines), `uvx hatch test tests/test_cli.py::TestCLIDiagnostics::test_check_provider_readiness_cloud_with_service_account` (failed: readiness ignored service accounts), and `uvx hatch test tests/test_cli.py::TestSetupProviders::test_setup_providers_preserves_existing_entries` (failed: setup clobbered existing map).
+- Post-implementation verification: targeted reruns of the above plus `uvx hatch test tests/test_cli.py::TestCLIConfigCommands` all passed after introducing engine canonicalisation, service-account detection, and provider map preservation.
+- Regression sweep: `uvx hatch test` → 303 passed, 0 failed (7.94s) confirming Phase 17 hardening tasks integrate cleanly.
+
+# 2025-10-01 (current iteration)
+
+- Iteration focus (per TODO): refresh recorded fixtures with realistic outputs, expand CLI alias tests, and guard `extract_recorded_text` against missing usage data. Tests first per instruction set.
+- /work setup: drafted failing tests for alias normalisation + extract fallback, prepare updated fixture expectations once new snippets defined.
+- Planned verifications: targeted pytest runs for updated suites followed by full `uvx hatch test` before /report.
+- Implemented richer provider fixture content and adjusted example snippet assertions to demand realistic text; added regression tests for placeholder-sensitive extraction paths.
+- Extended `tests/test_cli_validators.py` to parameterise alias checks for codex/claude/gemini/cloud (including whitespace trimming), keeping validation guidance robust.
+- Targeted verification: `uvx hatch test tests/test_examples.py tests/test_cli_validators.py` → 11 passed (6.64s) confirming new tests and fixtures integrate cleanly.
+- Extended Cloud Code regression expectation to match refreshed fixture usage totals and re-ran focused suite (`uvx hatch test tests/test_cloud_code_provider.py` → 4 passed, 0.06s).
+- Full regression: `uvx hatch test` → 284 passed (7.98s) after fixture refresh and alias coverage updates.
+- /report: revisited PLAN.md/TODO.md, reviewed `git status`, ran `uvx hatch test` (284 passed, 0 failed; 8.04s), and captured the run in CHANGELOG before cleanup.
+- Wait, but: confirmed TODO.md still lacks follow-up tasks, so plan to seed fresh maintenance items before next /work cycle.
+- New TODO focus: CLI config parameter guardrails (max_tokens fallback, config defaults, invalid persisted values).
+- /work setup: outline failing tests for config default propagation and invalid-config errors before adjusting CLI implementation.
+- /work tests-first plan: add new cases in `tests/test_cli.py` for config propagation/error handling prior to changing `UUTELCLI.complete`.
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` → fails (validation message missing, fallback swallowed zero).
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` → fails (config zero falls back to default, no error surfaced).
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_rejects_zero_max_tokens` → passed after max_tokens fallback fix.
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_invalid_config_max_tokens_surfaces_error` → passed once config zero preserved for validation.
+- Tests (post-fix): `uvx hatch test tests/test_cli.py::TestCLIParameterValidation::test_complete_command_uses_config_defaults` → passed, confirming config defaults propagate.
+- Regression sweep: `uvx hatch test` → 287 passed, 0 failed (9.60s) ensuring full suite remains green after CLI guardrail updates.
+- /cleanup: `make clean` to clear caches and build artefacts post-regression run.
+- New /work iteration goal: close out Phase 15 guardrails (complete preflight, placeholder warnings, stricter validation) with tests-first approach.
+- Immediate plan: draft failing tests in `tests/test_cli.py` and `tests/test_cli_validators.py` capturing readiness preflight, placeholder emissions, and NaN/boolean validation before touching implementation.
+- Verification strategy: targeted pytest runs for new cases followed by full `uvx hatch test`; capture outcomes in CHANGELOG and reconcile TODO/PLAN during wrap-up.
+- Tests (expected fail): `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_blocks_when_provider_not_ready`, `...::test_complete_command_warns_on_placeholder_result`, `...::test_complete_streaming_warns_on_placeholder_result`, and `uvx hatch test tests/test_cli_validators.py::TestValidateParameters::test_validate_parameters_rejects_{boolean_inputs,nan_temperature}` → all failed as planned, confirming guardrail gaps.
+- Implementation: added readiness preflight + placeholder detection to `UUTELCLI.complete` (non-stream + stream paths) and tightened `validate_parameters` to reject bool/NaN inputs.
+- Tests (post-fix): reran each targeted case above → all passed, validating guardrails.
+- Regression: `uvx hatch test` → 292 passed (7.72s) covering full suite after guardrail updates.
+
+# 2025-10-06
+
+- Iteration focus (current cycle): A) add config persistence tests, B) lock CLI validator coverage, C) expand placeholder heuristics/doc scans. Tests first per instructions.
+- Config helpers: drafted `tests/test_config.py` ahead of code changes; `uvx hatch test tests/test_config.py` → 5 passed validating merge/load/save/validation paths.
+- CLI validators: added `tests/test_cli_validators.py`; targeted run `uvx hatch test tests/test_cli_validators.py` → 4 passed covering alias/boundary enforcement.
+- Placeholder guardrails: extended `_PLACEHOLDER_PHRASES`, tightened fixture/doc scans, and added CLI heuristics tests; `uvx hatch test tests/test_cli.py -k placeholder` → 3 passed.
+- Full regression: `uvx hatch test` (279 passed, 0 failed; 8.21s) confirming new suites integrate cleanly post-doc tweak.
+- Wait, but: re-scanned docs for banned phrases (updated TROUBLESHOOTING heading) to avoid false positives before closing iteration.
+- /report: revisited PLAN/TODO, reviewed git status, executed `uvx hatch test` (262 passed, 0 failed; 7.6s) and captured the run in CHANGELOG ahead of cleanup.
+- Wait, but: double-checked no TODO items exist yet and noted NEED to seed fresh maintenance tasks before next /work cycle.
+- /cleanup: ran `make clean` to clear caches, build artefacts, and pytest state after the verification run.
+- Planning: drafted Phase 12 in PLAN.md and seeded TODO.md with doc cleanup, CLI guardrail, and fixture integrity tasks.
+- Iteration focus: ① update docs, ② harden `uutel test` placeholder detection, ③ add fixture integrity regression.
+- Docs: rewrote README quickstart + provider status, refreshed troubleshooting/AGENTS/GEMINI/QWEN/LLXPRT to drop mock verbiage and highlight alias usage.
+- CLI: taught `uutel test` to treat placeholder text as failure via `_looks_like_placeholder`, with new unit coverage.
+- Tests added: `tests/test_fixture_integrity.py` scanning recorded fixtures/docs for placeholders.
+- Tests run: `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_test_command_rejects_placeholder_output`, `uvx hatch test tests/test_fixture_integrity.py`, full `uvx hatch test` (268 passed, 0 failed, 8.5s).
+- Wait, but: double-checked docs for lingering placeholder synonyms and confirmed CLI still prints success banner for genuine runs.
+- /report: revisited `PLAN.md`/`TODO.md` (currently placeholder), inspected `git status` for outstanding provider edits, ran `uvx hatch test` (259 passed, 0 failed; 7.7s) and logged the outcome in `CHANGELOG.md`.
+- /cleanup: executed `make clean` to drop caches and build artefacts after the regression sweep.
+- Observations: TODO list presently empty; need to seed fresh maintenance tasks before continuing with /work as instructed.
+- Wait, but: confirmed example replay tests remain deterministic post-clean and noted readiness to draft the next quality-focused TODO batch.
+- Iteration focus: (1) Gemini CLI completion JSON parsing, (2) Gemini CLI streaming JSONL decoding, (3) Codex OpenAI fallback payload validation/tests.
+- Shipped Gemini CLI completion extraction + streaming JSONL parsing with new unit coverage, and added Codex OpenAI fallback payload/header regression.
+- Tests: `uvx hatch test` (262 passed, 0 failed) to validate the updated providers and CLI behaviours.
+- Wait, but: rechecked CLI streaming fallback on plain text to ensure compatibility with older CLI builds and noted no additional TODO items remaining.
+
+# 2025-10-05
+
+- /report: reread `PLAN.md`/`TODO.md`, noted pending modifications, ran `git status` for context, and executed `uvx hatch test` (254 passed, 0 failed) to take the current temperature of the suite.
+- Logged the fresh regression outcome in `CHANGELOG.md` ahead of cleanup.
+- /cleanup: executed `make clean` to clear caches and build artefacts post-test run.
+- Immediate iteration goals:
+  1. Update Codex auth loader to support modern `auth.json` layout with tests.
+  2. Buffer Gemini CLI streaming error fragments into actionable failures.
+  3. Extend Cloud Code readiness to honour gcloud default project config.
+- Implemented Codex auth loader parity for legacy and flat structures with new unit coverage.
+- Added Gemini CLI streaming error aggregation so fragmented JSON errors raise targeted guidance.
+- Extended Cloud Code readiness to source project ids from gcloud config and surface informational hint.
+- Tests: targeted modules (`tests/test_codex_provider.py::TestCodexAuthLoader`, `tests/test_gemini_provider.py::test_cli_streaming_raises_on_fragmented_error`, `tests/test_cli.py -k gcloud_config`) plus full `uvx hatch test` (259 passed).
+- Wait, but: re-reviewed CLI readiness flow to ensure gcloud-derived guidance never blocks success and verified no lingering TODO items remain for this iteration.
+- Cleanup: `make clean` to purge caches after regression run.
+
+# 2025-10-01
+
+- /report: reviewed `PLAN.md`/`TODO.md`, trimmed completed items, and logged fresh test results in `CHANGELOG.md`.
+- Tests: `uvx hatch test` (242 passed, 0 skipped) to confirm baseline prior to cleanup.
+- /cleanup: `make clean` to clear caches, coverage artefacts, and build directories.
+- Immediate objectives: (1) Cloud Code readiness warnings/tests, (2) Gemini CLI streaming chunk refinement, (3) Codex 401 credential guidance with sync/async coverage.
+- Implemented Cloud Code readiness detection for missing project/credentials with new CLI unit coverage.
+- Refined Gemini CLI streaming adapter to emit per-line chunks; added regression in `tests/test_gemini_provider.py::test_cli_streaming_yields_incremental_chunks`.
+- Added Codex HTTP 401 guidance handling (sync + async) surfaced via targeted unit tests.
+- Tests: `uvx hatch test tests/test_cli.py::TestCLIProviderReadiness` (7 passed), `uvx hatch test tests/test_gemini_provider.py::test_cli_streaming_yields_incremental_chunks` (1 passed), `uvx hatch test tests/test_codex_provider.py::TestCodexUUCompletion::test_completion_returns_credential_guidance_on_401 tests/test_codex_provider.py::TestCodexUUAsyncCompletion::test_acompletion_returns_credential_guidance_on_401` (2 passed), `uvx hatch test` (248 passed).
+- Cleanup: `make clean` to remove caches after regression sweep.
+
+# 2025-10-03
+
+- /report: re-read `PLAN.md`/`TODO.md`, reviewed git status for outstanding file edits, summarised changes for CLI + Codex provider modules, and captured results below.
+- Tests: `uvx hatch test` (235 passed, 0 skipped/xfail) to reconfirm suite health after latest provider/CLI updates.
+- Logged the /report execution and fresh test run in `CHANGELOG.md` under the Unreleased Tests section.
+- /cleanup: ran `make clean` to drop caches (`.pytest_cache`, build artefacts) and reset workspace clutter.
+- Observed TODO list fully complete; prepared to seed new quality-focused tasks per instructions.
+- Planned Phase 9 focus items (provider readiness checks, realistic example replay, Codex streaming event coverage) and migrated TODO list to track the three open tasks.
+- Added CLI test preflight coverage: wrote failing readiness tests, implemented `_check_provider_readiness`, and confirmed via `uvx hatch test tests/test_cli.py` (33 passed).
+- Rebuilt `examples/basic_usage.py` around recorded fixtures and added subprocess regression test; executed `uvx hatch test tests/test_examples.py` (1 passed, ~3s runtime).
+- Extended Codex SSE parser for `function_call_name.delta`/`tool_call_arguments.delta`; validated with `uvx hatch test tests/test_codex_provider.py` (21 passed).
+- Regression sweep: `uvx hatch test` (242 passed, slowest ~3s example replay) to confirm suite health after reliability updates.
+
+- /report: reviewed `PLAN.md` and `TODO.md` (all items already complete), inspected recent changes, and ran `uvx hatch test` → 235 passed; logged results in `CHANGELOG.md`.
+- Noted no additional TODO/PLAN pruning required because every task remains checked off.
+- Captured test outcome and reporting details in this log for traceability.
+- /cleanup: executed `make clean` to remove caches, build directories, and bytecode artefacts.
+- Immediate iteration focus: (1) swap CLI verbose toggle to `LITELLM_LOG`, (2) make Codex async paths truly asynchronous, (3) refresh fixtures/tests with realistic provider text.
+- Replaced CLI verbose toggling with `LITELLM_LOG` env flag, added regression coverage in `tests/test_cli.py::TestUUTELCLI::test_verbose_logging_sets_env_flag`.
+- Reworked `CodexUU.acompletion` to use httpx `AsyncClient`, added async-specific assertion in `TestCodexUUAsyncCompletion.test_acompletion_basic_functionality`.
+- Updated provider fixtures/tests/docs to use recorded snippet text instead of "mock response" phrasing for offline demos.
+- Tests: `uvx hatch test tests/test_codex_provider.py` (20 passed) and `uvx hatch test tests/test_cli.py` (28 passed) during development.
+- Tests: `uvx hatch test` (235 passed) after implementation to confirm full suite health.
+
+# 2025-10-04
+
+- /report: `uvx hatch test` (248 passed); `CHANGELOG.md` updated with fresh run; cleanup via `make clean`.
+- TODO seeded with Phase 11 hardening tasks (live example toggle, diagnostics command, Codex error guidance).
+- Immediate focus:
+  1. Add `UUTEL_LIVE_EXAMPLE` path to `examples/basic_usage.py` with dual-path tests.
+  2. Implement `uutel diagnostics` CLI command leveraging `_check_provider_readiness` guidance.
+  3. Broaden Codex error translation for 403/429/5xx across sync/async/streaming with targeted tests.
+- TDD plan: write failing tests for each item before implementation; ensure coverage for env toggles, CLI output, and HTTP error handling.
+- Post-implementation: rerun `uvx hatch test`, update docs (README/TROUBLESHOOTING/CHANGELOG), mark TODO/PLAN items complete, execute `/report`.
+- Added env-gated live mode to `examples/basic_usage.py` with stub directory support and updated messaging.
+- Introduced `uutel diagnostics` command summarising alias readiness; covered via unit test patching readiness results.
+- Hardened Codex HTTP error guidance for 403/429/5xx (including streaming) with retry-after parsing and matching tests.
+- Documentation updates: `README.md` live mode + diagnostics, `TROUBLESHOOTING.md` new Codex guidance, `CHANGELOG.md` entries.
+- Tests: `uvx hatch test tests/test_examples.py`, `uvx hatch test tests/test_cli.py::TestCLIDiagnostics::test_diagnostics_reports_ready_and_missing`, `uvx hatch test tests/test_codex_provider.py::{TestCodexUUCompletion::test_completion_http_errors_emit_guidance,TestCodexUUStreaming::test_streaming_status_error_maps_to_guidance}`, and full `uvx hatch test` (254 passed).
+
+# 2025-10-02
+
+- Issue #203 sync: aligned CLI list output/tests with new engine descriptions and alias shortcuts; replaced pytest-asyncio markers in Codex delegation tests with `asyncio.run` wrappers plus `AsyncMock` so suite runs without extra plugins.
+- Rewrote `examples/basic_usage.py` to showcase engine alias mapping and replay recorded completions for Claude, Gemini, Cloud Code, and Codex alongside live CLI instructions.
+- Updated README/PLAN/TODO to highlight alias usage, recorded examples, and completed provider delegation milestones.
+- Tests: `uvx hatch test` (235 passed) verifying CLI/tests/example updates remain green.
+
 # 2025-09-30
 
 - /work iteration: targeting Cloud Code provider parity with TS reference (`/v1internal:generateContent` + streaming). Immediate items:
@@ -83,3 +441,5 @@ this_file: WORK.md
 - Refreshed `examples/basic_usage.py` to replay deterministic Claude fixture via monkeypatched provider and printed live-run instructions; executed script to verify output.
 - Updated README examples section with offline replay details and live run steps.
 - Ran `uvx hatch test` (229 passed, 0 failed) validating full suite after provider + CLI + docs updates.
+- Verification: full `uvx hatch test` (409 passed, 0 failed, 1 skipped; 8.67s) confirming Phase 30 hardening passes regression suite.
+- TODO cleanup: marked Phase 30 items complete and cleared TODO.md back to empty slate.

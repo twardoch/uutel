@@ -500,7 +500,7 @@ if hasattr(response, 'choices'):
     if hasattr(choice.message, 'tool_calls'):
         print(f"Tool calls: {choice.message.tool_calls}")
 
-# Create mock response for testing
+# Create example output for testing
 mock_response = {
     "choices": [{
         "message": {
@@ -886,6 +886,21 @@ logging.getLogger("uutel").setLevel(logging.INFO)
 
 **Cause:** Invalid credentials or expired tokens
 **Solution:** Check API keys and token expiry
+
+### "Codex request forbidden (HTTP 403)"
+
+**Cause:** Codex session token expired or missing required permissions
+**Solution:** Run `codex login` to refresh the CLI session or set `OPENAI_API_KEY`
+
+### "Codex rate limit reached (HTTP 429)"
+
+**Cause:** Too many Codex requests in a short period
+**Solution:** Wait for the reported `Retry-After` interval (printed in the error message) before retrying, or reduce request concurrency
+
+### "Codex service unavailable (HTTP 5xx)"
+
+**Cause:** Temporary outage or maintenance on the Codex backend
+**Solution:** Retry after a short delay; use `uutel diagnostics` to confirm local configuration before retrying
 
 ### "Model not found"
 

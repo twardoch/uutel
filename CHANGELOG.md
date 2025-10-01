@@ -7,6 +7,9 @@ this_file: CHANGELOG.md
 ## [2025-10-07] - Maintenance Report
 
 ### Tests
+- /report verification (current request, 2025-10-07): `uvx hatch test` → 501 passed, 2 skipped (49.70s runtime; command timed out at 61.2s immediately after pytest reported success).
+- Codex custom LLM guardrails (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` → 4 passed; `uvx hatch test` → 495 passed, 2 skipped (21.37s runtime; harness termination at 27.8s a few seconds after pytest reported success).
+- Codex CustomLLM reliability sprint (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` → 10 passed; `uvx hatch test` → 501 passed, 2 skipped (41.10s runtime; harness termination at 51.4s shortly after pytest success).
 - /report verification (current request, 2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.02s runtime; harness timeout triggered at 21.0s immediately after pytest completed successfully).
 - Config CLI input validation hardening (2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.55s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
 - /report verification (current request, 2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.28s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
@@ -17,6 +20,8 @@ this_file: CHANGELOG.md
 - `uvx hatch test` → 485 passed, 2 skipped (16.53s) after CLI/docs parity refinements.
 
 ### Notes
+- Hardened Codex CustomLLM to resolve `codex-*` aliases, include provider/model metadata when raising LiteLLM errors, and align CLI error surfacing with litellm's BadRequest/APIConnection expectations.
+- Ensured Codex CustomLLM gracefully bypasses LiteLLMException passthrough when the attribute is absent and covered streaming/model_response normalisation with dedicated regression tests.
 - Normalised `uutel config set` coercion errors so invalid numeric/boolean input now reuse the shared bullet guidance and default sentinels clear stored overrides.
 - Updated CLI help docstrings to surface alias-first guidance and adjusted Fire snapshot tests to consume stderr output.
 - Refreshed README and provider docs to use `codex`/`claude` aliases exclusively and added a configuration snippet synced with `create_default_config()`.

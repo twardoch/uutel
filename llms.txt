@@ -4092,6 +4092,9 @@ this_file: CHANGELOG.md
 ## [2025-10-07] - Maintenance Report
 
 ### Tests
+- /report verification (current request, 2025-10-07): `uvx hatch test` → 501 passed, 2 skipped (49.70s runtime; command timed out at 61.2s immediately after pytest reported success).
+- Codex custom LLM guardrails (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` → 4 passed; `uvx hatch test` → 495 passed, 2 skipped (21.37s runtime; harness termination at 27.8s a few seconds after pytest reported success).
+- Codex CustomLLM reliability sprint (current request, 2025-10-07): `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` → 10 passed; `uvx hatch test` → 501 passed, 2 skipped (41.10s runtime; harness termination at 51.4s shortly after pytest success).
 - /report verification (current request, 2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.02s runtime; harness timeout triggered at 21.0s immediately after pytest completed successfully).
 - Config CLI input validation hardening (2025-10-07): `uvx hatch test` → 491 passed, 2 skipped (16.55s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
 - /report verification (current request, 2025-10-07): `uvx hatch test` → 488 passed, 2 skipped (16.28s runtime; harness timeout triggered at 21.2s immediately after pytest completed successfully).
@@ -4102,6 +4105,8 @@ this_file: CHANGELOG.md
 - `uvx hatch test` → 485 passed, 2 skipped (16.53s) after CLI/docs parity refinements.
 
 ### Notes
+- Hardened Codex CustomLLM to resolve `codex-*` aliases, include provider/model metadata when raising LiteLLM errors, and align CLI error surfacing with litellm's BadRequest/APIConnection expectations.
+- Ensured Codex CustomLLM gracefully bypasses LiteLLMException passthrough when the attribute is absent and covered streaming/model_response normalisation with dedicated regression tests.
 - Normalised `uutel config set` coercion errors so invalid numeric/boolean input now reuse the shared bullet guidance and default sentinels clear stored overrides.
 - Updated CLI help docstrings to surface alias-first guidance and adjusted Fire snapshot tests to consume stderr output.
 - Refreshed README and provider docs to use `codex`/`claude` aliases exclusively and added a configuration snippet synced with `create_default_config()`.
@@ -7825,6 +7830,18 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - Add contract tests with recorded Cloud Code responses plus CLI readiness coverage for OAuth/project edge cases.
 
 
+## Mini Hardening Sprint – Output Sanitisation & Provider Map Resilience (Planned 2025-10-07)
+- **Objective**: Remove lingering reliability footguns in the CLI <> LiteLLM bridge so noisy control sequences and unusual LiteLLM state do not disrupt users invoking UUTEL outside our curated CLI entry points.
+- **Tasks**:
+  1. Normalise `litellm.custom_provider_map` inputs: teach `setup_providers()` to coerce `None`, tuples, and dict-based formats into a list before merging, while preserving non-UUTEL entries. Add regression cases in `tests/test_cli.py::TestSetupProviders` covering tuple/None/dict inputs to prove we no longer drop third-party handlers.
+  2. Introduce terminal-safe output: funnel `_safe_output()` through a control-character scrubber (preserving newlines and standard whitespace) so provider responses containing stray ANSI/VT100 bytes cannot corrupt downstream pipelines. Add focussed tests in `tests/test_cli.py::TestCLIStreamingOutput` (new) that inject ANSI-laden chunks and assert captured stdout/stderr are cleaned.
+  3. Case-fold Codex aliases: update `CodexCustomLLM._map_model_name()` to resolve aliases case-insensitively, preventing LiteLLM integrations from failing when partners send uppercase model ids. Extend `tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` with canonical/alias uppercase permutations and a failure assertion for unknown mixed-case inputs.
+- **Validation**:
+  - Tests-first: add failing pytest cases for each bullet before adjusting implementation.
+  - Targeted runs: `uvx hatch test tests/test_cli.py::TestSetupProviders` and the new streaming sanitisation suite, plus `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping`.
+  - Regression sweep: full `uvx hatch test` with results logged to `CHANGELOG.md` and `WORK.md`.
+
+
 
 ## Testing & Validation Strategy
 - Maintain tests-first workflow: introduce failing unit/integration tests for each bullet before implementation.
@@ -7842,6 +7859,18 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
   - Tests-first: extend `tests/test_examples.py` (fixture metadata) and `tests/test_cli.py` (list output) with failing cases before implementation.
   - Run targeted pytest modules prior to full regression suite for faster feedback.
   - Record updates in `WORK.md`, surface new tests in `CHANGELOG.md` after the regression sweep.
+
+## Mini Hardening Sprint – Codex CustomLLM Reliability (Planned 2025-10-07)
+- **Status**: Completed 2025-10-07 (alias coverage, streaming metadata, and model_response normalisation).
+- **Objective**: Lock in Codex alias resolution and error propagation so LiteLLM consumers always receive consistent metadata across sync, async, and streaming entry points.
+- **Tasks**:
+  1. Add regression tests verifying `_map_model_name` resolves both `codex-*` and `my-custom-llm/codex-*` aliases to canonical OpenAI models, including direct passthrough for supported backend IDs.
+  2. Cover `streaming` and `astreaming` error paths with tests that assert `litellm.APIConnectionError` instances carry `llm_provider` and canonical `model` metadata when the underlying provider raises `UUTELError`.
+  3. Exercise `_prepare_kwargs`'s model_response handling by simulating providers returning `None` or responses lacking `choices/message`, ensuring the helper back-fills a minimal `ModelResponse` structure.
+- **Validation**:
+  - Write failing tests in `tests/test_codex_provider.py` targeting alias resolution, streaming error metadata, and model response normalisation before touching implementation.
+  - Run targeted selections followed by full `uvx hatch test`; log both runs in `WORK.md` and `CHANGELOG.md`.
+  - Confirm TODO.md mirrors these tasks and clear entries once regression suite is green.
 
 ## Mini Hardening Sprint – Config Normalisation (Planned 2025-10-07)
 - **Status**: Completed 2025-10-07
@@ -9256,7 +9285,9 @@ this_file: TODO.md
 
 # UUTEL Real Provider TODO
 
-No pending items. Sync with `PLAN.md` before adding new tasks.
+- [] Harden `setup_providers()` to normalise non-list `litellm.custom_provider_map` inputs and preserve third-party handlers with new regression tests.
+- [] Scrub ANSI/control sequences inside CLI output helpers and add streaming output sanitisation coverage.
+- [] Make `CodexCustomLLM` alias resolution case-insensitive and expand model mapping tests for uppercase permutations.
 </document_content>
 </document>
 
@@ -10356,6 +10387,16 @@ this_file: WORK.md
 ---
 
 # 2025-10-07 (current iteration)
+- /plan: Added "Output Sanitisation & Provider Map Resilience" mini sprint covering provider-map normalisation, CLI ANSI scrubbing, and Codex alias case-folding; mirrored tasks into TODO.md.
+- Immediate focus: follow tests-first workflow—author failing cases for setup_providers tuple/None inputs, CLI streaming sanitisation, and Codex uppercase aliases before updating implementation.
+- Codex custom LLM guardrails: added regression tests for missing/alias model mapping, expanded alias table, and ensured APIConnectionError/BadRequestError include provider/model metadata.
+- Tests: Re-ran `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` (4 passed) and full regression via `uvx hatch test` (495 passed, 2 skipped; 21.37s runtime with harness termination at 27.8s a few seconds after pytest reported success).
+- /cleanup: `make clean` removed build/dist artefacts, caches, and bytecode after regression verification.
+- /work focus: Codex CustomLLM reliability sprint covering alias resolution, streaming/async error metadata, and model_response normalisation.
+- Implementation: Guarded LiteLLM exception passthrough via dynamic attribute detection and added streaming/model-response regression coverage.
+- Tests: `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` (10 passed) and `uvx hatch test` (501 passed, 2 skipped; 41.10s runtime with harness termination at 51.4s after pytest success).
+- TODO/PLAN sync: marked Codex CustomLLM reliability sprint complete and reset TODO.md to "No pending items".
+- Manual verification: `uutel test` now routes `my-custom-llm/codex-large` to `gpt-4o` and emits structured API error guidance instead of crashing with TypeError.
 - /report: Reviewed PLAN/TODO (no pending items), `git status` inspected, and `uvx hatch test` (491 passed, 2 skipped; 16.02s runtime with harness timeout at 21.0s post-success) recorded.
 - /report: `uvx hatch test` (488 passed, 2 skipped; 16.28s runtime with harness timeout at 21.2s immediately after pytest success) logged in CHANGELOG; TODO.md/PLAN.md checked and remain empty.
 - /cleanup: `make clean` executed to remove build artefacts post-report.
@@ -11824,6 +11865,7 @@ import errno
 import json
 import math
 import os
+import re
 import shutil
 import sys
 from difflib import get_close_matches
@@ -11927,6 +11969,9 @@ def _extract_provider_metadata((error: Exception)) -> tuple[str | None, str | No
 
 def format_error_message((error: Exception, context: str = "")) -> str:
     """Format error messages with basic suggestions."""
+
+def _scrub_control_sequences((message: str)) -> str:
+    """Remove ANSI escape codes and non-printable control characters."""
 
 def _safe_output((
     message: str = "",
@@ -15522,6 +15567,22 @@ class TestSetupProviders:
         self, monkeypatch: pytest.MonkeyPatch
     )) -> None:
         """Repeated setup invocations should not duplicate UUTEL handlers."""
+    def test_setup_providers_handles_none_existing_map((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """None-valued custom_provider_map should initialise cleanly."""
+    def test_setup_providers_preserves_tuple_entries((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """Tuple-based provider maps should retain non-UUTEL entries."""
+    def test_setup_providers_converts_dict_map((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+        """Dict-style provider maps should be converted while preserving handlers."""
+
+class TestCLIStreamingSanitisation:
+    """Validate sanitisation of streamed provider output."""
+    def setup_method((self)) -> None:
 
 def setup_method((self)):
     """Set up test fixtures."""
@@ -15997,6 +16058,28 @@ def test_setup_providers_is_idempotent((
     )) -> None:
     """Repeated setup invocations should not duplicate UUTEL handlers."""
 
+def test_setup_providers_handles_none_existing_map((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """None-valued custom_provider_map should initialise cleanly."""
+
+def test_setup_providers_preserves_tuple_entries((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """Tuple-based provider maps should retain non-UUTEL entries."""
+
+def test_setup_providers_converts_dict_map((
+        self, monkeypatch: pytest.MonkeyPatch
+    )) -> None:
+    """Dict-style provider maps should be converted while preserving handlers."""
+
+def setup_method((self)) -> None:
+
+def test_streaming_output_sanitises_control_sequences((
+        self, mock_completion: MagicMock, capsys: pytest.CaptureFixture[str]
+    )) -> None:
+    """ANSI and control bytes should be stripped from streamed output."""
+
 def test_main_handles_keyboard_interrupt((mock_fire, capsys)) -> None:
     """main() should translate KeyboardInterrupt into a friendly cancellation message."""
 
@@ -16260,15 +16343,16 @@ def test_resolve_project_id_raises_with_guidance_when_missing((
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 import httpx
+import litellm
 import pytest
-from litellm.types.utils import ModelResponse
+from litellm.types.utils import GenericStreamingChunk, ModelResponse
 from uutel.core.exceptions import UUTELError
 from uutel.providers.codex import CodexUU
 from uutel.providers.codex.custom_llm import CodexCustomLLM
@@ -16329,6 +16413,65 @@ class TestCodexUUBasics:
         """Test CodexUU initializes correctly."""
     def test_codex_uu_supported_models((self)) -> None:
         """Test CodexUU has expected supported models."""
+
+class TestCodexCustomLLMModelMapping:
+    """Regression coverage for CodexCustomLLM model resolution."""
+    def test_map_model_name_when_missing_model_then_bad_request((self)) -> None:
+        """An empty model should raise a litellm.BadRequestError."""
+    def test_map_model_name_when_unknown_model_then_bad_request((self)) -> None:
+        """Unknown models should raise a BadRequestError referencing the provider."""
+    def test_map_model_name_when_codex_alias_then_resolves_supported_model((
+        self,
+    )) -> None:
+        """Alias names should resolve to actual Codex backend models."""
+    def test_map_model_name_when_my_custom_alias_then_resolves_supported_model((
+        self,
+    )) -> None:
+        """my-custom-llm aliases should also resolve to canonical backend IDs."""
+    def test_map_model_name_when_backend_model_then_passthrough((self)) -> None:
+        """Direct backend model names should pass straight through."""
+
+class TestCodexCustomLLMErrorHandling:
+    """Tests for API error translation in CodexCustomLLM."""
+    def test_completion_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+        """CodexCustomLLM should raise APIConnectionError with provider/model info."""
+    def test_streaming_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+        """Streaming errors should include provider/model metadata."""
+    def test_astreaming_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+        """Async streaming errors should include provider/model metadata."""
+
+class _FailingProvider:
+    def completion((self, *args: Any, **kwargs: Any)) -> None:
+
+class _FailingProvider:
+    def streaming((
+                self, *args: Any, **kwargs: Any
+            )) -> Iterator[GenericStreamingChunk]:
+
+class _FailingProvider:
+    def astreaming((
+                self, *args: Any, **kwargs: Any
+            )) -> AsyncIterator[GenericStreamingChunk]:
+
+class TestCodexCustomLLMModelResponseNormalisation:
+    """Tests for normalising LiteLLM model responses."""
+    def test_prepare_kwargs_when_model_response_missing_then_inserts_placeholder((
+        self,
+    )) -> None:
+        """Providers returning None should receive a minimal ModelResponse."""
+    def test_prepare_kwargs_when_choices_missing_message_then_backfills_message((
+        self,
+    )) -> None:
+        """Existing ModelResponse objects missing messages should be normalised."""
+
+class _NoopProvider(C, o, d, e, x, U, U):
+    def completion((self, *args: Any, **kwargs: Any)) -> ModelResponse:
 
 class TestCodexUUCompletion:
     """Test CodexUU completion functionality."""
@@ -16499,6 +16642,64 @@ def test_codex_uu_initialization((self)) -> None:
 
 def test_codex_uu_supported_models((self)) -> None:
     """Test CodexUU has expected supported models."""
+
+def test_map_model_name_when_missing_model_then_bad_request((self)) -> None:
+    """An empty model should raise a litellm.BadRequestError."""
+
+def test_map_model_name_when_unknown_model_then_bad_request((self)) -> None:
+    """Unknown models should raise a BadRequestError referencing the provider."""
+
+def test_map_model_name_when_codex_alias_then_resolves_supported_model((
+        self,
+    )) -> None:
+    """Alias names should resolve to actual Codex backend models."""
+
+def test_map_model_name_when_my_custom_alias_then_resolves_supported_model((
+        self,
+    )) -> None:
+    """my-custom-llm aliases should also resolve to canonical backend IDs."""
+
+def test_map_model_name_when_backend_model_then_passthrough((self)) -> None:
+    """Direct backend model names should pass straight through."""
+
+def test_completion_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+    """CodexCustomLLM should raise APIConnectionError with provider/model info."""
+
+def completion((self, *args: Any, **kwargs: Any)) -> None:
+
+def test_streaming_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+    """Streaming errors should include provider/model metadata."""
+
+def streaming((
+                self, *args: Any, **kwargs: Any
+            )) -> Iterator[GenericStreamingChunk]:
+
+def test_astreaming_when_provider_raises_uutel_error_then_api_error_has_metadata((
+        self,
+    )) -> None:
+    """Async streaming errors should include provider/model metadata."""
+
+def astreaming((
+                self, *args: Any, **kwargs: Any
+            )) -> AsyncIterator[GenericStreamingChunk]:
+
+def _consume(()) -> None:
+
+def test_prepare_kwargs_when_model_response_missing_then_inserts_placeholder((
+        self,
+    )) -> None:
+    """Providers returning None should receive a minimal ModelResponse."""
+
+def completion((self, *args: Any, **kwargs: Any)) -> ModelResponse:
+
+def test_prepare_kwargs_when_choices_missing_message_then_backfills_message((
+        self,
+    )) -> None:
+    """Existing ModelResponse objects missing messages should be normalised."""
 
 def test_completion_basic_functionality((
         self, codex_client_factory: Callable[..., tuple[Mock, dict]]

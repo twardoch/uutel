@@ -31,6 +31,18 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - Add contract tests with recorded Cloud Code responses plus CLI readiness coverage for OAuth/project edge cases.
 
 
+## Mini Hardening Sprint – Output Sanitisation & Provider Map Resilience (Planned 2025-10-07)
+- **Objective**: Remove lingering reliability footguns in the CLI <> LiteLLM bridge so noisy control sequences and unusual LiteLLM state do not disrupt users invoking UUTEL outside our curated CLI entry points.
+- **Tasks**:
+  1. Normalise `litellm.custom_provider_map` inputs: teach `setup_providers()` to coerce `None`, tuples, and dict-based formats into a list before merging, while preserving non-UUTEL entries. Add regression cases in `tests/test_cli.py::TestSetupProviders` covering tuple/None/dict inputs to prove we no longer drop third-party handlers.
+  2. Introduce terminal-safe output: funnel `_safe_output()` through a control-character scrubber (preserving newlines and standard whitespace) so provider responses containing stray ANSI/VT100 bytes cannot corrupt downstream pipelines. Add focussed tests in `tests/test_cli.py::TestCLIStreamingOutput` (new) that inject ANSI-laden chunks and assert captured stdout/stderr are cleaned.
+  3. Case-fold Codex aliases: update `CodexCustomLLM._map_model_name()` to resolve aliases case-insensitively, preventing LiteLLM integrations from failing when partners send uppercase model ids. Extend `tests/test_codex_provider.py::TestCodexCustomLLMModelMapping` with canonical/alias uppercase permutations and a failure assertion for unknown mixed-case inputs.
+- **Validation**:
+  - Tests-first: add failing pytest cases for each bullet before adjusting implementation.
+  - Targeted runs: `uvx hatch test tests/test_cli.py::TestSetupProviders` and the new streaming sanitisation suite, plus `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping`.
+  - Regression sweep: full `uvx hatch test` with results logged to `CHANGELOG.md` and `WORK.md`.
+
+
 
 ## Testing & Validation Strategy
 - Maintain tests-first workflow: introduce failing unit/integration tests for each bullet before implementation.
@@ -48,6 +60,18 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
   - Tests-first: extend `tests/test_examples.py` (fixture metadata) and `tests/test_cli.py` (list output) with failing cases before implementation.
   - Run targeted pytest modules prior to full regression suite for faster feedback.
   - Record updates in `WORK.md`, surface new tests in `CHANGELOG.md` after the regression sweep.
+
+## Mini Hardening Sprint – Codex CustomLLM Reliability (Planned 2025-10-07)
+- **Status**: Completed 2025-10-07 (alias coverage, streaming metadata, and model_response normalisation).
+- **Objective**: Lock in Codex alias resolution and error propagation so LiteLLM consumers always receive consistent metadata across sync, async, and streaming entry points.
+- **Tasks**:
+  1. Add regression tests verifying `_map_model_name` resolves both `codex-*` and `my-custom-llm/codex-*` aliases to canonical OpenAI models, including direct passthrough for supported backend IDs.
+  2. Cover `streaming` and `astreaming` error paths with tests that assert `litellm.APIConnectionError` instances carry `llm_provider` and canonical `model` metadata when the underlying provider raises `UUTELError`.
+  3. Exercise `_prepare_kwargs`'s model_response handling by simulating providers returning `None` or responses lacking `choices/message`, ensuring the helper back-fills a minimal `ModelResponse` structure.
+- **Validation**:
+  - Write failing tests in `tests/test_codex_provider.py` targeting alias resolution, streaming error metadata, and model response normalisation before touching implementation.
+  - Run targeted selections followed by full `uvx hatch test`; log both runs in `WORK.md` and `CHANGELOG.md`.
+  - Confirm TODO.md mirrors these tasks and clear entries once regression suite is green.
 
 ## Mini Hardening Sprint – Config Normalisation (Planned 2025-10-07)
 - **Status**: Completed 2025-10-07

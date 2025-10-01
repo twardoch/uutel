@@ -2048,6 +2048,97 @@ class TestSetupProviders:
                 f"Provider {provider} should remain at {count} entries, found {final_count}"
             )
 
+    def test_setup_providers_handles_none_existing_map(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """None-valued custom_provider_map should initialise cleanly."""
+
+        monkeypatch.setattr(
+            "uutel.__main__.litellm.custom_provider_map", None, raising=False
+        )
+        monkeypatch.setattr("litellm.custom_provider_map", None, raising=False)
+
+        setup_providers()
+
+        providers = litellm.custom_provider_map
+        assert isinstance(providers, list), (
+            "Provider map should normalise None into a list"
+        )
+        assert any(entry.get("provider") == "uutel-claude" for entry in providers), (
+            "UUTEL handlers should still register after normalisation"
+        )
+
+    def test_setup_providers_preserves_tuple_entries(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Tuple-based provider maps should retain non-UUTEL entries."""
+
+        sentinel_entry = {"provider": "external-provider", "custom_handler": object()}
+        tuple_map = (sentinel_entry.copy(),)
+
+        monkeypatch.setattr(
+            "uutel.__main__.litellm.custom_provider_map", tuple_map, raising=False
+        )
+        monkeypatch.setattr("litellm.custom_provider_map", tuple_map, raising=False)
+
+        setup_providers()
+
+        providers = litellm.custom_provider_map
+        assert isinstance(providers, list), "Tuple input should normalise to list"
+        assert any(
+            entry.get("provider") == "external-provider" for entry in providers
+        ), "Existing tuple entries should survive normalisation"
+
+    def test_setup_providers_converts_dict_map(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dict-style provider maps should be converted while preserving handlers."""
+
+        handler = object()
+        dict_map = {"external-provider": handler}
+
+        monkeypatch.setattr(
+            "uutel.__main__.litellm.custom_provider_map", dict_map, raising=False
+        )
+        monkeypatch.setattr("litellm.custom_provider_map", dict_map, raising=False)
+
+        setup_providers()
+
+        providers = litellm.custom_provider_map
+        assert isinstance(providers, list), "Dict input should normalise to list"
+        assert any(
+            entry.get("provider") == "external-provider"
+            and entry.get("custom_handler") is handler
+            for entry in providers
+        ), "Dict entries should be preserved as provider/custom_handler pairs"
+
+
+class TestCLIStreamingSanitisation:
+    """Validate sanitisation of streamed provider output."""
+
+    def setup_method(self) -> None:
+        self.cli = UUTELCLI()
+
+    @patch("litellm.completion")
+    def test_streaming_output_sanitises_control_sequences(
+        self, mock_completion: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """ANSI and control bytes should be stripped from streamed output."""
+
+        chunk = MagicMock()
+        chunk.choices = [MagicMock()]
+        chunk.choices[0].delta = MagicMock()
+        chunk.choices[0].delta.content = "\x1b[31mHello\x1b[0m\x07 world"
+        mock_completion.return_value = [chunk]
+
+        result = self.cli.complete("Prompt", stream=True)
+
+        captured = capsys.readouterr()
+        assert "\x1b" not in captured.out, "ANSI escape sequences should be removed"
+        assert "\x07" not in captured.out, "Bell characters should be removed"
+        assert "Hello world" in captured.out, "Sanitised text should remain visible"
+        assert result == "Hello world", "Return value should reflect sanitised text"
+
 
 @patch("uutel.__main__.fire.Fire")
 def test_main_handles_keyboard_interrupt(mock_fire, capsys) -> None:

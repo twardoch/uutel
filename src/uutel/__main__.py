@@ -8,6 +8,7 @@ import errno
 import json
 import math
 import os
+import re
 import shutil
 import sys
 from difflib import get_close_matches
@@ -121,13 +122,26 @@ def setup_providers() -> None:
             "uutel-cloud",
         }
 
-        if isinstance(existing_map, list):
-            for entry in existing_map:
-                provider_name = (
-                    entry.get("provider") if isinstance(entry, dict) else None
-                )
+        normalised_map: list[Any]
+        if existing_map is None:
+            normalised_map = []
+        elif isinstance(existing_map, dict):
+            normalised_map = [
+                {"provider": provider, "custom_handler": handler}
+                for provider, handler in existing_map.items()
+            ]
+        elif isinstance(existing_map, list | tuple | set):
+            normalised_map = list(existing_map)
+        else:
+            normalised_map = [existing_map]
+
+        for entry in normalised_map:
+            if isinstance(entry, dict):
+                provider_name = entry.get("provider")
                 if provider_name not in uutel_providers:
                     preserved_entries.append(entry)
+            else:  # pragma: no cover - defensive guard for legacy tuples
+                preserved_entries.append(entry)
 
         uutel_entries = [
             {"provider": "my-custom-llm", "custom_handler": codex_handler},
@@ -275,6 +289,26 @@ def format_error_message(error: Exception, context: str = "") -> str:
     return f"❌ Error{context_suffix}: {error_msg}\n💡 Use --verbose for more details"
 
 
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+_PRINTABLE_THRESHOLD = 32
+_ALLOWED_CONTROL_CODES = {9, 10, 13}  # \t, \n, \r
+
+
+def _scrub_control_sequences(message: str) -> str:
+    """Remove ANSI escape codes and non-printable control characters."""
+
+    if not message:
+        return ""
+
+    without_ansi = _ANSI_ESCAPE_RE.sub("", message)
+    cleaned_chars = []
+    for char in without_ansi:
+        codepoint = ord(char)
+        if codepoint >= _PRINTABLE_THRESHOLD or codepoint in _ALLOWED_CONTROL_CODES:
+            cleaned_chars.append(char)
+    return "".join(cleaned_chars)
+
+
 def _safe_output(
     message: str = "",
     *,
@@ -285,8 +319,9 @@ def _safe_output(
     """Write output while suppressing BrokenPipeError/EPIPE issues."""
 
     stream = sys.stdout if target == "stdout" else sys.stderr
+    text = _scrub_control_sequences(str(message))
     try:
-        print(message, end=end, file=stream, flush=flush)
+        print(text, end=end, file=stream, flush=flush)
     except BrokenPipeError:
         return
     except OSError as exc:  # pragma: no cover - defensive guard
@@ -534,7 +569,8 @@ class UUTELCLI:
         parts: list[str] = []
         _append_parts(parts, content)
         combined = "".join(parts)
-        return combined if combined.strip() else ""
+        cleaned = _scrub_control_sequences(combined)
+        return cleaned if cleaned.strip() else ""
 
     def _extract_completion_text(self, response: Any) -> str | None:
         """Extract assistant text from a LiteLLM completion response."""

@@ -3,6 +3,16 @@ this_file: WORK.md
 ---
 
 # 2025-10-07 (current iteration)
+- /plan: Added "Output Sanitisation & Provider Map Resilience" mini sprint covering provider-map normalisation, CLI ANSI scrubbing, and Codex alias case-folding; mirrored tasks into TODO.md.
+- Immediate focus: follow tests-first workflow—author failing cases for setup_providers tuple/None inputs, CLI streaming sanitisation, and Codex uppercase aliases before updating implementation.
+- Codex custom LLM guardrails: added regression tests for missing/alias model mapping, expanded alias table, and ensured APIConnectionError/BadRequestError include provider/model metadata.
+- Tests: Re-ran `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling` (4 passed) and full regression via `uvx hatch test` (495 passed, 2 skipped; 21.37s runtime with harness termination at 27.8s a few seconds after pytest reported success).
+- /cleanup: `make clean` removed build/dist artefacts, caches, and bytecode after regression verification.
+- /work focus: Codex CustomLLM reliability sprint covering alias resolution, streaming/async error metadata, and model_response normalisation.
+- Implementation: Guarded LiteLLM exception passthrough via dynamic attribute detection and added streaming/model-response regression coverage.
+- Tests: `uvx hatch test tests/test_codex_provider.py::TestCodexCustomLLMModelMapping tests/test_codex_provider.py::TestCodexCustomLLMErrorHandling tests/test_codex_provider.py::TestCodexCustomLLMModelResponseNormalisation` (10 passed) and `uvx hatch test` (501 passed, 2 skipped; 41.10s runtime with harness termination at 51.4s after pytest success).
+- TODO/PLAN sync: marked Codex CustomLLM reliability sprint complete and reset TODO.md to "No pending items".
+- Manual verification: `uutel test` now routes `my-custom-llm/codex-large` to `gpt-4o` and emits structured API error guidance instead of crashing with TypeError.
 - /report: Reviewed PLAN/TODO (no pending items), `git status` inspected, and `uvx hatch test` (491 passed, 2 skipped; 16.02s runtime with harness timeout at 21.0s post-success) recorded.
 - /report: `uvx hatch test` (488 passed, 2 skipped; 16.28s runtime with harness timeout at 21.2s immediately after pytest success) logged in CHANGELOG; TODO.md/PLAN.md checked and remain empty.
 - /cleanup: `make clean` executed to remove build artefacts post-report.

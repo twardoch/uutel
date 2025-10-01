@@ -26,6 +26,11 @@ _ENGINE_MODEL_MAP: dict[str, str] = {
     "my-custom-llm/codex-turbo": "gpt-4-turbo",
     "my-custom-llm/codex-fast": "gpt-3.5-turbo",
     "my-custom-llm/codex-preview": "o1-preview",
+    "codex-large": "gpt-4o",
+    "codex-mini": "gpt-4o-mini",
+    "codex-turbo": "gpt-4-turbo",
+    "codex-fast": "gpt-3.5-turbo",
+    "codex-preview": "o1-preview",
     "uutel-codex/gpt-4o": "gpt-4o",
     "uutel-codex/gpt-4o-mini": "gpt-4o-mini",
     "uutel-codex/gpt-4-turbo": "gpt-4-turbo",
@@ -33,6 +38,8 @@ _ENGINE_MODEL_MAP: dict[str, str] = {
     "uutel-codex/o1-preview": "o1-preview",
     "uutel-codex/o1-mini": "o1-mini",
 }
+
+_LITELLM_EXCEPTION_TYPE = getattr(litellm, "LiteLLMException", None)
 
 
 class CodexCustomLLM(CustomLLM):
@@ -62,7 +69,11 @@ class CodexCustomLLM(CustomLLM):
 
     def _map_model_name(self, model: str) -> str:
         if not model:
-            raise litellm.BadRequestError("Model name is required for Codex provider")
+            raise litellm.BadRequestError(
+                "Model name is required for Codex provider",
+                model="",
+                llm_provider=self.provider_name,
+            )
 
         if model in _ENGINE_MODEL_MAP:
             return _ENGINE_MODEL_MAP[model]
@@ -75,7 +86,11 @@ class CodexCustomLLM(CustomLLM):
         if model in self._provider.supported_models:
             return model
 
-        raise litellm.BadRequestError(f"Unsupported Codex model '{model}'")
+        raise litellm.BadRequestError(
+            f"Unsupported Codex model '{model}'",
+            model=model,
+            llm_provider=self.provider_name,
+        )
 
     def _prepare_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         prepared = dict(kwargs)
@@ -96,12 +111,20 @@ class CodexCustomLLM(CustomLLM):
             return self._provider.completion(*args, **prepared_kwargs)
         except UUTELError as exc:
             logger.error("Codex provider error: %s", exc)
-            raise litellm.APIConnectionError(str(exc)) from exc
-        except litellm.LiteLLMException:
-            raise
+            raise litellm.APIConnectionError(
+                str(exc),
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
         except Exception as exc:  # pragma: no cover - defensive
+            if _LITELLM_EXCEPTION_TYPE and isinstance(exc, _LITELLM_EXCEPTION_TYPE):
+                raise
             logger.exception("Codex provider unexpected failure")
-            raise litellm.APIConnectionError(f"Codex provider failure: {exc}") from exc
+            raise litellm.APIConnectionError(
+                f"Codex provider failure: {exc}",
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
 
     async def acompletion(self, *args: Any, **kwargs: Any) -> ModelResponse:
         prepared_kwargs = self._prepare_kwargs(kwargs)
@@ -109,12 +132,20 @@ class CodexCustomLLM(CustomLLM):
             return await self._provider.acompletion(*args, **prepared_kwargs)
         except UUTELError as exc:
             logger.error("Codex provider error: %s", exc)
-            raise litellm.APIConnectionError(str(exc)) from exc
-        except litellm.LiteLLMException:
-            raise
+            raise litellm.APIConnectionError(
+                str(exc),
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
         except Exception as exc:  # pragma: no cover - defensive
+            if _LITELLM_EXCEPTION_TYPE and isinstance(exc, _LITELLM_EXCEPTION_TYPE):
+                raise
             logger.exception("Codex provider unexpected failure")
-            raise litellm.APIConnectionError(f"Codex provider failure: {exc}") from exc
+            raise litellm.APIConnectionError(
+                f"Codex provider failure: {exc}",
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
 
     def streaming(self, *args: Any, **kwargs: Any) -> Iterator[GenericStreamingChunk]:
         prepared_kwargs = self._prepare_kwargs(kwargs)
@@ -123,12 +154,20 @@ class CodexCustomLLM(CustomLLM):
             yield from iterator
         except UUTELError as exc:
             logger.error("Codex provider error: %s", exc)
-            raise litellm.APIConnectionError(str(exc)) from exc
-        except litellm.LiteLLMException:
-            raise
+            raise litellm.APIConnectionError(
+                str(exc),
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
         except Exception as exc:  # pragma: no cover - defensive
+            if _LITELLM_EXCEPTION_TYPE and isinstance(exc, _LITELLM_EXCEPTION_TYPE):
+                raise
             logger.exception("Codex provider unexpected failure")
-            raise litellm.APIConnectionError(f"Codex provider failure: {exc}") from exc
+            raise litellm.APIConnectionError(
+                f"Codex provider failure: {exc}",
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
 
     async def astreaming(
         self, *args: Any, **kwargs: Any
@@ -139,9 +178,17 @@ class CodexCustomLLM(CustomLLM):
                 yield chunk
         except UUTELError as exc:
             logger.error("Codex provider error: %s", exc)
-            raise litellm.APIConnectionError(str(exc)) from exc
-        except litellm.LiteLLMException:
-            raise
+            raise litellm.APIConnectionError(
+                str(exc),
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc
         except Exception as exc:  # pragma: no cover - defensive
+            if _LITELLM_EXCEPTION_TYPE and isinstance(exc, _LITELLM_EXCEPTION_TYPE):
+                raise
             logger.exception("Codex provider unexpected failure")
-            raise litellm.APIConnectionError(f"Codex provider failure: {exc}") from exc
+            raise litellm.APIConnectionError(
+                f"Codex provider failure: {exc}",
+                llm_provider=self.provider_name,
+                model=prepared_kwargs.get("model", ""),
+            ) from exc

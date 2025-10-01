@@ -3,7 +3,7 @@
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
@@ -11,8 +11,9 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
+import litellm
 import pytest
-from litellm.types.utils import ModelResponse
+from litellm.types.utils import GenericStreamingChunk, ModelResponse
 
 from uutel.core.exceptions import UUTELError
 from uutel.providers.codex import CodexUU
@@ -193,6 +194,183 @@ class TestCodexUUBasics:
 
         for model in expected_models:
             assert model in codex.supported_models
+
+
+class TestCodexCustomLLMModelMapping:
+    """Regression coverage for CodexCustomLLM model resolution."""
+
+    def test_map_model_name_when_missing_model_then_bad_request(self) -> None:
+        """An empty model should raise a litellm.BadRequestError."""
+
+        custom_llm = CodexCustomLLM()
+
+        with pytest.raises(litellm.BadRequestError) as exc_info:
+            custom_llm._map_model_name("")
+
+        error = exc_info.value
+        assert error.model == ""
+        assert error.llm_provider == "codex"
+        assert "required" in str(error)
+
+    def test_map_model_name_when_unknown_model_then_bad_request(self) -> None:
+        """Unknown models should raise a BadRequestError referencing the provider."""
+
+        custom_llm = CodexCustomLLM()
+
+        with pytest.raises(litellm.BadRequestError) as exc_info:
+            custom_llm._map_model_name("unknown-model")
+
+        error = exc_info.value
+        assert error.model == "unknown-model"
+        assert error.llm_provider == "codex"
+        assert "Unsupported" in str(error)
+
+    def test_map_model_name_when_codex_alias_then_resolves_supported_model(
+        self,
+    ) -> None:
+        """Alias names should resolve to actual Codex backend models."""
+
+        custom_llm = CodexCustomLLM()
+
+        resolved = custom_llm._map_model_name("codex-large")
+
+        assert resolved == "gpt-4o"
+
+    def test_map_model_name_when_my_custom_alias_then_resolves_supported_model(
+        self,
+    ) -> None:
+        """my-custom-llm aliases should also resolve to canonical backend IDs."""
+
+        custom_llm = CodexCustomLLM()
+
+        resolved = custom_llm._map_model_name("my-custom-llm/codex-mini")
+
+        assert resolved == "gpt-4o-mini"
+
+    def test_map_model_name_when_backend_model_then_passthrough(self) -> None:
+        """Direct backend model names should pass straight through."""
+
+        custom_llm = CodexCustomLLM()
+
+        resolved = custom_llm._map_model_name("gpt-4o")
+
+        assert resolved == "gpt-4o"
+
+
+class TestCodexCustomLLMErrorHandling:
+    """Tests for API error translation in CodexCustomLLM."""
+
+    def test_completion_when_provider_raises_uutel_error_then_api_error_has_metadata(
+        self,
+    ) -> None:
+        """CodexCustomLLM should raise APIConnectionError with provider/model info."""
+
+        class _FailingProvider:
+            provider_name = "codex"
+            supported_models = ["gpt-4o"]
+
+            def completion(self, *args: Any, **kwargs: Any) -> None:
+                raise UUTELError("boom", provider="codex")
+
+        custom_llm = CodexCustomLLM(provider=_FailingProvider())
+
+        with pytest.raises(litellm.APIConnectionError) as exc_info:
+            custom_llm.completion(model="codex-large")
+
+        error = exc_info.value
+        assert error.llm_provider == "codex"
+        assert error.model == "gpt-4o"
+
+    def test_streaming_when_provider_raises_uutel_error_then_api_error_has_metadata(
+        self,
+    ) -> None:
+        """Streaming errors should include provider/model metadata."""
+
+        class _FailingProvider:
+            provider_name = "codex"
+            supported_models = ["gpt-4o"]
+
+            def streaming(
+                self, *args: Any, **kwargs: Any
+            ) -> Iterator[GenericStreamingChunk]:  # type: ignore[override]
+                raise UUTELError("boom", provider="codex")
+
+        custom_llm = CodexCustomLLM(provider=_FailingProvider())
+
+        with pytest.raises(litellm.APIConnectionError) as exc_info:
+            next(custom_llm.streaming(model="codex-large"))
+
+        error = exc_info.value
+        assert error.llm_provider == "codex"
+        assert error.model == "gpt-4o"
+
+    def test_astreaming_when_provider_raises_uutel_error_then_api_error_has_metadata(
+        self,
+    ) -> None:
+        """Async streaming errors should include provider/model metadata."""
+
+        class _FailingProvider:
+            provider_name = "codex"
+            supported_models = ["gpt-4o"]
+
+            async def astreaming(
+                self, *args: Any, **kwargs: Any
+            ) -> AsyncIterator[GenericStreamingChunk]:  # type: ignore[override]
+                raise UUTELError("boom", provider="codex")
+                if False:  # pragma: no cover - appease type checkers
+                    yield None
+
+        custom_llm = CodexCustomLLM(provider=_FailingProvider())
+
+        async def _consume() -> None:
+            async for _ in custom_llm.astreaming(model="codex-large"):
+                pass
+
+        with pytest.raises(litellm.APIConnectionError) as exc_info:
+            asyncio.run(_consume())
+
+        error = exc_info.value
+        assert error.llm_provider == "codex"
+        assert error.model == "gpt-4o"
+
+
+class TestCodexCustomLLMModelResponseNormalisation:
+    """Tests for normalising LiteLLM model responses."""
+
+    def test_prepare_kwargs_when_model_response_missing_then_inserts_placeholder(
+        self,
+    ) -> None:
+        """Providers returning None should receive a minimal ModelResponse."""
+
+        class _NoopProvider(CodexUU):
+            def completion(self, *args: Any, **kwargs: Any) -> ModelResponse:  # type: ignore[override]
+                return kwargs["model_response"]
+
+        custom_llm = CodexCustomLLM(provider=_NoopProvider())
+
+        response = custom_llm.completion(model="codex-mini")
+
+        assert response.choices is not None
+        assert response.choices[0].message is not None
+
+    def test_prepare_kwargs_when_choices_missing_message_then_backfills_message(
+        self,
+    ) -> None:
+        """Existing ModelResponse objects missing messages should be normalised."""
+
+        custom_llm = CodexCustomLLM()
+        model_response = litellm.ModelResponse()
+        choice = litellm.utils.Choices()
+        choice.message = None
+        model_response.choices = [choice]
+
+        prepared = custom_llm._prepare_kwargs(
+            {"model": "codex-mini", "model_response": model_response}
+        )
+
+        response = prepared["model_response"]
+        assert response.choices is not None
+        assert response.choices[0].message is not None
 
 
 class TestCodexUUCompletion:

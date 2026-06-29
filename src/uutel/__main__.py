@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # this_file: src/uutel/__main__.py
-"""UUTEL CLI - Simple Fire-based CLI for single-turn inference."""
+"""UUTEL CLI: Get AI completions straight from the terminal.
+
+No boilerplate. No complex server setup. Just run the command and get your response.
+We use `fire` for the CLI interface because it maps directly to our functions without fuss.
+
+Example:
+    uutel complete --prompt "Write a hello world in Rust" --engine uutel-claude/claude-sonnet-4
+
+Run `uutel help` for everything else.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +26,7 @@ from typing import Any
 
 import fire
 import litellm
-from examples import basic_usage
+from uutel.docs import recorded_examples
 
 from uutel.core.config import (
     UUTELConfig,
@@ -1132,7 +1141,7 @@ class UUTELCLI:
         self._safe_print("📝 Usage Examples:")
         emitted_hints: set[str] = set()
         canonical_aliases: dict[str, str] = {}
-        for fixture in basic_usage.RECORDED_FIXTURES:
+        for fixture in recorded_examples.RECORDED_FIXTURES:
             hint = fixture.get("live_hint")
             if not hint or hint in emitted_hints:
                 continue

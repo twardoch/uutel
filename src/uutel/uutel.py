@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # this_file: src/uutel/uutel.py
-"""UUTEL core functionality.
+"""UUTEL core functionality: Data processing and configuration.
 
-Created by Adam Twardoch
+This module provides the core data structures and processing logic.
+It validates input data, applies configuration options, and transforms 
+it into a structured dictionary.
+
+If it breaks, check your config object and make sure your data isn't empty.
 """
 
 # Standard library imports
@@ -18,12 +22,12 @@ logger = get_logger(__name__)
 
 @dataclass
 class Config:
-    """Configuration settings for uutel.
+    """Configuration settings for UUTEL processing.
 
     Attributes:
-        name: Configuration name identifier
-        value: Configuration value (string, int, or float)
-        options: Optional dictionary of additional configuration options
+        name: What to call this config.
+        value: The core setting (string, int, or float).
+        options: Extra key/value tweaks to apply during processing.
     """
 
     name: str
@@ -34,18 +38,21 @@ class Config:
 def process_data(
     data: list[Any], config: Config | None = None, *, debug: bool = False
 ) -> dict[str, Any]:
-    """Process the input data according to configuration.
+    """Transform input data into a structured dictionary.
+
+    It adds type information and applies any provided configuration settings
+    to each item in the data list. 
 
     Args:
-        data: Input data to process
-        config: Optional configuration settings
-        debug: Enable debug mode
+        data: A list of items to process. Cannot be empty.
+        config: Settings to apply to each item.
+        debug: If True, spits out extra logs.
 
     Returns:
-        Processed data as a dictionary
+        A dictionary containing the processed items, count, timestamp, and debug status.
 
     Raises:
-        ValueError: If input data is invalid
+        ValueError: Thrown if `data` is empty. The error message will tell you to provide input.
     """
     if debug:
         logger.debug("Debug mode enabled")

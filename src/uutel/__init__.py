@@ -1,8 +1,14 @@
 # this_file: src/uutel/__init__.py
-"""UUTEL: Universal AI Provider for LiteLLM
+"""UUTEL: The Universal AI Provider for LiteLLM
 
-This package extends LiteLLM's provider ecosystem by implementing custom providers
-for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex.
+Tired of maintaining separate API clients for Claude Code, Gemini CLI, Google Cloud Code, and OpenAI Codex? 
+So were we. UUTEL extends LiteLLM's provider ecosystem by implementing the Universal Unit (UU) pattern. 
+It wraps these disparate CLI tools and APIs into standard LiteLLM providers. 
+
+Why use this?
+- Drop-in compatibility with anything that speaks LiteLLM (or standard OpenAI format).
+- Use local, authenticated CLI sessions (like `claude login`) as backend providers.
+- Consistent error handling, rate limiting, and tool calling across fundamentally different backends.
 """
 
 from __future__ import annotations

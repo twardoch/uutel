@@ -1,0 +1,706 @@
+{
+  "schema_version": 1,
+  "scanned_at": "2026-04-07T22:33:49.407Z",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "title": "this_file: .github/workflows/ci.yml",
+      "summary": "[Warning: 100+ docs found, listing first 100] name: CI on: push: branches: [ main, develop ] pull_request: branches: [ main, develop ] workflow_dispatch: concurrency: group: ${{ github.workflow }}-${{ github.ref }} cancel-in-progress: true env...",
+      "lines": 200,
+      "mtime": 1759148661011
+    },
+    {
+      "path": ".github/workflows/push.yml",
+      "title": "this_file: .github/workflows/push.yml",
+      "summary": "name: Build & Test on: push: branches: [main] tags-ignore: [\"v*\"] workflow_dispatch: permissions: contents: write id-token: write concurrency: group: ${{ github.workflow }}-${{ github.ref }} cancel...",
+      "lines": 104,
+      "mtime": 1759148661012
+    },
+    {
+      "path": ".github/workflows/release-preparation.yml",
+      "title": "this_file: .github/workflows/release-preparation.yml",
+      "summary": "name: Prepare Release on: workflow_dispatch: inputs: version_type: description: 'Version type to release' required: true default: 'patch' type: choice options: - patch - minor - major - prerelease ...",
+      "lines": 228,
+      "mtime": 1759148661013
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "title": "release.yml",
+      "summary": "name: Release on: push: tags: [\"v*\"] permissions: contents: write id-token: write jobs: release: name: Release to PyPI runs-on: ubuntu-latest environment: name: pypi url: https://pypi.org/p/uutel s...",
+      "lines": 110,
+      "mtime": 1759148661013
+    },
+    {
+      "path": ".github/workflows/semantic-release.yml",
+      "title": "this_file: .github/workflows/semantic-release.yml",
+      "summary": "name: Semantic Release on: push: branches: - main workflow_dispatch: inputs: dry_run: description: 'Dry run (do not create release)' required: false default: false type: boolean permissions: conten...",
+      "lines": 313,
+      "mtime": 1759148661014
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/fire/console/README.md",
+      "title": "README.md",
+      "summary": "This is the console package from googlecloudsdk, as used by Python Fire. Python Fire does not accept pull requests modifying the console package; rather, changes to console should go through the up...",
+      "lines": 4,
+      "mtime": 1755382563184
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/completion_extras/README.md",
+      "title": "README.md",
+      "summary": "Logic specific for `litellm.completion`. Includes: - Bridge for transforming completion requests to responses api requests",
+      "lines": 4,
+      "mtime": 1759106997076
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/integrations/bitbucket/README.md",
+      "title": "LiteLLM BitBucket Prompt Management",
+      "summary": "A powerful prompt management system for LiteLLM that fetches `.prompt` files from BitBucket repositories. This enables team-based prompt management with BitBucket's built-in access control and vers...",
+      "lines": 318,
+      "mtime": 1759106997744
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/integrations/dotprompt/README.md",
+      "title": "LiteLLM Dotprompt Manager",
+      "summary": "A powerful prompt management system for LiteLLM that supports [Google's Dotprompt specification](https://google.github.io/dotprompt/getting-started/). This allows you to manage your AI prompts in o...",
+      "lines": 316,
+      "mtime": 1759106998044
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/litellm_core_utils/README.md",
+      "title": "README.md",
+      "summary": "This folder contains general-purpose utilities that are used in multiple places in the codebase. Core files: - `streaming_handler.py`: The core streaming logic + streaming related helper utils - `c...",
+      "lines": 13,
+      "mtime": 1759106998486
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/llms/azure_ai/README.md",
+      "title": "README.md",
+      "summary": "`/chat/completion` calls routed via `openai.py`.",
+      "lines": 1,
+      "mtime": 1759107002053
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/llms/gemini/context_caching/README.md",
+      "title": "README.md",
+      "summary": "[Go here for the Gemini Context Caching code](../../vertex_ai/context_caching/)",
+      "lines": 1,
+      "mtime": 1759107002117
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/llms/hosted_vllm/embedding/README.md",
+      "title": "README.md",
+      "summary": "No transformation is required for hosted_vllm embedding. VLLM is a superset of OpenAI's `embedding` endpoint. To pass provider-specific parameters, see [this](https://docs.litellm.ai/docs/completio...",
+      "lines": 5,
+      "mtime": 1759107002124
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/llms/README.md",
+      "title": "README.md",
+      "summary": "To make it easy to see how calls are transformed for each model/provider: we are working on moving all supported litellm providers to a folder structure, where folder name is the supported litellm ...",
+      "lines": 12,
+      "mtime": 1759107002030
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/passthrough/README.md",
+      "title": "README.md",
+      "summary": "This makes it easier to pass through requests to the LLM APIs. E.g. Route to VLLM's `/classify` endpoint: ```python import litellm response = litellm.llm_passthrough_route( model=\"hosted_vllm/paplu...",
+      "lines": 118,
+      "mtime": 1759107002345
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/proxy/client/cli/README.md",
+      "title": "LiteLLM Proxy CLI",
+      "summary": "The LiteLLM Proxy CLI is a command-line tool for managing your LiteLLM proxy server. It provides commands for managing models, viewing server status, and interacting with the proxy server. ```bash ...",
+      "lines": 537,
+      "mtime": 1759107002929
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/proxy/client/README.md",
+      "title": "LiteLLM Proxy Client",
+      "summary": "A Python client library for interacting with the LiteLLM proxy server. This client provides a clean, typed interface for managing models, keys, credentials, and making chat completions. ```bash pip...",
+      "lines": 394,
+      "mtime": 1759107002928
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/proxy/discovery_endpoints/README.md",
+      "title": "README.md",
+      "summary": "Return the proxy base url and server root path, so UI can construct the correct url to access the proxy. This is useful when the proxy is deployed at a different path than the root of the domain. *...",
+      "lines": 13,
+      "mtime": 1759107002961
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/proxy/README.md",
+      "title": "litellm-proxy",
+      "summary": "A local, fast, and lightweight **OpenAI-compatible server** to call 100+ LLM APIs. ```shell $ pip install litellm ``` ```shell $ litellm --model ollama/codellama ``` ```python import openai # opena...",
+      "lines": 44,
+      "mtime": 1759107002346
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/proxy/types_utils/README.md",
+      "title": "README.md",
+      "summary": "Utility functions for proxy types.py",
+      "lines": 1,
+      "mtime": 1759107003192
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/realtime_api/README.md",
+      "title": "README.md",
+      "summary": "Abstraction / Routing logic for OpenAI's `/v1/realtime` endpoint.",
+      "lines": 1,
+      "mtime": 1759107003197
+    },
+    {
+      "path": ".venv/lib/python3.12/site-packages/litellm/types/proxy/README.md",
+      "title": "README.md",
+      "summary": "These are file-specific types for the proxy. For Types you expect to be used across the proxy, put them in `litellm/proxy/_types.py`",
+      "lines": 3,
+      "mtime": 1759107003263
+    },
+    {
+      "path": "AGENTS.md",
+      "title": "Install and use immediately",
+      "summary": "ses/MIT) **UUTEL** is a comprehensive Python package that provides a robust foundation for extending LiteLLM's provider ecosystem. It implements the **Universal Unit (UU)** pattern and provides cor...",
+      "lines": 470,
+      "mtime": 1759313962930
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "title": "UUTEL Architecture Documentation",
+      "summary": "UUTEL (Universal AI Provider for LiteLLM) implements a comprehensive architecture for extending LiteLLM's provider ecosystem with custom AI providers. The architecture follows modern Python design ...",
+      "lines": 439,
+      "mtime": 1759148661018
+    },
+    {
+      "path": "CHANGELOG.md",
+      "title": "CHANGELOG",
+      "summary": "--- this_file: CHANGELOG.md --- - /report: Reviewed PLAN.md and TODO.md; worktree still contains in-flight provider/doc harmonisation edits pending follow-up, none removed during this cycle. - Test...",
+      "lines": 1107,
+      "mtime": 1759364587348
+    },
+    {
+      "path": "CLAUDE.md",
+      "title": "Install and use immediately",
+      "summary": "ses/MIT) **UUTEL** is a comprehensive Python package that provides a robust foundation for extending LiteLLM's provider ecosystem. It implements the **Universal Unit (UU)** pattern and provides cor...",
+      "lines": 470,
+      "mtime": 1759313962930
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "title": "Contributing to UUTEL",
+      "summary": "Welcome to UUTEL! We appreciate your interest in contributing to the Universal AI Provider for LiteLLM. This guide will help you get started with development, testing, and contributing to the project.",
+      "lines": 547,
+      "mtime": 1759148661021
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-claude-code/CHANGELOG.md",
+      "title": "Changelog",
+      "summary": "All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versionin...",
+      "lines": 190,
+      "mtime": 1759095320466
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-claude-code/examples/README.md",
+      "title": "Claude Code AI SDK Provider Examples",
+      "summary": "This directory contains curated examples demonstrating the most important features of the Claude Code AI SDK Provider. Each example serves a specific purpose and demonstrates a key pattern or capab...",
+      "lines": 245,
+      "mtime": 1759095320471
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-claude-code/README.md",
+      "title": "AI SDK Provider for Claude Code SDK",
+      "summary": "<p align=\"center\"> <img src=\"https://img.shields.io/badge/status-stable-00A79E\" alt=\"stable status\"> <a href=\"https://www.npmjs.com/package/ai-sdk-provider-claude-code\"><img src=\"https://img.shield...",
+      "lines": 155,
+      "mtime": 1759095320467
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-gemini-cli/CHANGELOG.md",
+      "title": "Changelog",
+      "summary": "All notable changes to this project will be documented in this file. - **Critical OAuth Fix**: Added `isBrowserLaunchSuppressed()` config method to prevent crashes during OAuth authentication (LOGI...",
+      "lines": 219,
+      "mtime": 1759095309296
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-gemini-cli/CONTRIBUTING.md",
+      "title": "Contributing to AI SDK Provider for Gemini CLI",
+      "summary": "Thank you for your interest in contributing! We welcome contributions from the community. 1. Fork the repository 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/ai-sdk-provider-gemi...",
+      "lines": 54,
+      "mtime": 1759095309296
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-gemini-cli/docs/README.md",
+      "title": "AI SDK Provider for Gemini CLI - Technical Documentation",
+      "summary": "This directory contains technical documentation for the AI SDK Provider for Gemini CLI implementation. This provider is compatible with Vercel AI SDK v5. For v5-specific documentation, see: - **[ai...",
+      "lines": 82,
+      "mtime": 1759095309298
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-gemini-cli/examples/README.md",
+      "title": "Gemini CLI AI SDK Provider Examples",
+      "summary": "This directory contains curated examples demonstrating the key features of the Gemini CLI AI SDK Provider. Each example shows how to use Google's Gemini models through the Cloud Code endpoints with...",
+      "lines": 224,
+      "mtime": 1759095309304
+    },
+    {
+      "path": "external/repo/ai-sdk-provider-gemini-cli/README.md",
+      "title": "AI SDK Provider for Gemini CLI",
+      "summary": "<p align=\"center\"> <img src=\"https://img.shields.io/badge/status-stable-00A79E\" alt=\"stable status\"> <a href=\"https://www.npmjs.com/package/ai-sdk-provider-gemini-cli\"><img src=\"https://img.shields...",
+      "lines": 438,
+      "mtime": 1759095309297
+    },
+    {
+      "path": "external/repo/ai/.changeset/README.md",
+      "title": "Changesets",
+      "summary": "Hello and welcome! This folder has been automatically generated by `@changesets/cli`, a build tool that works with multi-package repos, or single-package repos to help you version and publish your ...",
+      "lines": 9,
+      "mtime": 1759095381732
+    },
+    {
+      "path": "external/repo/ai/CHANGELOG.md",
+      "title": "CHANGELOG.md",
+      "summary": "You can find the changelogs for the individual packages in their respective `CHANGELOG.md` files: - [ai](./packages/ai/CHANGELOG.md) - [@ai-sdk/amazon-bedrock](./packages/amazon-bedrock/CHANGELOG.m...",
+      "lines": 46,
+      "mtime": 1759095381759
+    },
+    {
+      "path": "external/repo/ai/CONTRIBUTING.md",
+      "title": "Contributing to the AI SDK",
+      "summary": "We deeply appreciate your interest in contributing to our repository! Whether you're reporting bugs, suggesting enhancements, improving docs, or submitting pull requests, your contributions help im...",
+      "lines": 99,
+      "mtime": 1759095381760
+    },
+    {
+      "path": "external/repo/ai/examples/ai-core/README.md",
+      "title": "AI Core Examples",
+      "summary": "This directory contains scripts and test suites for quickly and easily validating, testing, and iterating on high level `ai/core` functions across providers. Basic examples for the `ai/core` functi...",
+      "lines": 52,
+      "mtime": 1759095381990
+    },
+    {
+      "path": "external/repo/ai/examples/angular/README.md",
+      "title": "Angular AI Chat",
+      "summary": "A simple chat application built with Angular that connects to OpenAI models using the AI SDK. ```bash pnpm install echo \"OPENAI_API_KEY=your_key_here\" > .env pnpm start ``` This runs both the Angul...",
+      "lines": 34,
+      "mtime": 1759095382274
+    },
+    {
+      "path": "external/repo/ai/examples/express/README.md",
+      "title": "Express.js + AI SDK Example",
+      "summary": "You can use the AI SDK in an [Express.js](https://expressjs.com/) server to generate and stream text and objects. 1. Create .env file with the following content (and more settings, depending on the...",
+      "lines": 32,
+      "mtime": 1759095382283
+    },
+    {
+      "path": "external/repo/ai/examples/fastify/README.md",
+      "title": "Fastify + AI SDK Example",
+      "summary": "You can use the AI SDK in an [Fastify](https://fastify.dev/) server to generate and stream text and objects. 1. Create .env file with the following content (and more settings, depending on the prov...",
+      "lines": 31,
+      "mtime": 1759095382285
+    },
+    {
+      "path": "external/repo/ai/examples/hono/README.md",
+      "title": "Hono + AI SDK Example",
+      "summary": "You can use the AI SDK in an [Hono](https://hono.dev/) server to generate and stream text and objects. 1. Create .env file with the following content (and more settings, depending on the providers ...",
+      "lines": 31,
+      "mtime": 1759095382287
+    },
+    {
+      "path": "external/repo/ai/examples/mcp/README.md",
+      "title": "MCP + AI SDK Example",
+      "summary": "You can use the AI SDK with MCP to convert between MCP and AI SDK tool calls. This example demonstrates tool conversion from both SSE and `stdio` MCP servers. 1. Create .env file with the following...",
+      "lines": 62,
+      "mtime": 1759095382289
+    },
+    {
+      "path": "external/repo/ai/examples/nest/README.md",
+      "title": "Nest.js + AI SDK Example",
+      "summary": "You can use the AI SDK in an [Nest.js](https://nestjs.com/) server to generate and stream text and objects. 1. Create .env file with the following content (and more settings, depending on the provi...",
+      "lines": 30,
+      "mtime": 1759095382295
+    },
+    {
+      "path": "external/repo/ai/examples/next-agent/README.md",
+      "title": "README.md",
+      "summary": "A minimal example to show code modularization with agents, tools, and components.",
+      "lines": 2,
+      "mtime": 1759095382299
+    },
+    {
+      "path": "external/repo/ai/examples/next-fastapi/README.md",
+      "title": "AI SDK, Next.js, and FastAPI Examples",
+      "summary": "These examples show you how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org) and [FastAPI](https://fastapi.tiangolo.com). Execute [`create-next-app`](https://github.c...",
+      "lines": 42,
+      "mtime": 1759095382310
+    },
+    {
+      "path": "external/repo/ai/examples/next-google-vertex/README.md",
+      "title": "AI SDK, Next.js, and Google Vertex AI Edge Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) and [Google Vertex AI](https://cloud.google.com/vertex-ai) to validate that the AI SDK's Goog...",
+      "lines": 36,
+      "mtime": 1759095382321
+    },
+    {
+      "path": "external/repo/ai/examples/next-langchain/README.md",
+      "title": "AI SDK, Next.js, LangChain, OpenAI Chat Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/), [LangChain](https://js.langchain.com), and [OpenAI](https://openai.com) to create a ChatGPT-...",
+      "lines": 44,
+      "mtime": 1759095382328
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-kasada-bot-protection/README.md",
+      "title": "Next.js x AI SDK x Kasada",
+      "summary": "Integration of an AI chat app based on Vercel's AI SDK and [Kasada](https://www.kasada.io/)'s advanced bot protection solution. This implementation hooks into the API calls to the LLM and prevents ...",
+      "lines": 24,
+      "mtime": 1759095382336
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-pages/README.md",
+      "title": "AI SDK, Next.js (Pages router), and OpenAI Chat Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) (pages router) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming...",
+      "lines": 43,
+      "mtime": 1759095382343
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-telemetry-sentry/README.md",
+      "title": "AI SDK, Next.js, and OpenAI Chat Example with Sentry",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/), [OpenAI](https://openai.com) and [Sentry](https://sentry.io) to create a ChatGPT-like AI-pow...",
+      "lines": 50,
+      "mtime": 1759095382361
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-telemetry/app/README.md",
+      "title": "AI SDK, Next.js, and OpenAI Chat Telemetry Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot. Depl...",
+      "lines": 43,
+      "mtime": 1759095382368
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-telemetry/README.md",
+      "title": "AI SDK, Next.js, and OpenAI Chat Example with Telemetry",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot with ...",
+      "lines": 44,
+      "mtime": 1759095382367
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai-upstash-rate-limits/README.md",
+      "title": "AI SDK, Next.js, and OpenAI Chat Example with Rate Limits (via Vercel KV)",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot with ...",
+      "lines": 46,
+      "mtime": 1759095382373
+    },
+    {
+      "path": "external/repo/ai/examples/next-openai/README.md",
+      "title": "AI SDK, Next.js, and OpenAI Chat Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot. Depl...",
+      "lines": 44,
+      "mtime": 1759095382378
+    },
+    {
+      "path": "external/repo/ai/examples/next/README.md",
+      "title": "README.md",
+      "summary": "A minimal example to test persistence, SSR, and stream resume.",
+      "lines": 2,
+      "mtime": 1759095382492
+    },
+    {
+      "path": "external/repo/ai/examples/node-http-server/README.md",
+      "title": "Node.js Http Server + AI SDK Example",
+      "summary": "You can use the AI SDK in a simple Node.js HTTP server to generate and stream text and objects. 1. Create .env file with the following content (and more settings, depending on the providers you wan...",
+      "lines": 30,
+      "mtime": 1759095382503
+    },
+    {
+      "path": "external/repo/ai/examples/nuxt-openai/README.md",
+      "title": "AI SDK, Nuxt and OpenAI Chat Example",
+      "summary": "This example shows how to use the [AI SDK](https://ai-sdk.dev/docs) with [Nuxt](https://nuxt.com/), and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot. Deploy t...",
+      "lines": 48,
+      "mtime": 1759095382506
+    },
+    {
+      "path": "external/repo/ai/examples/sveltekit-openai/README.md",
+      "title": "`sveltekit-openai`",
+      "summary": "To run this example, clone the repository, and at the root install dependencies and build: ``` pnpm install pnpm build ``` Then create a `.env.local` file in `examples/sveltekit-openai` with: ``` O...",
+      "lines": 21,
+      "mtime": 1759095382518
+    },
+    {
+      "path": "external/repo/ai/packages/ai/CHANGELOG.md",
+      "title": "ai",
+      "summary": "- 7c3c216: fixed docs and exported NoSpeechGeneratedError - 8dac895: feat: `LanguageModelV3` - e0d1ea9: fix(ai): align logic of text-end with reasoning-end - 10c1322: fix: moved dependency `@ai-sdk...",
+      "lines": 5446,
+      "mtime": 1759095382537
+    },
+    {
+      "path": "external/repo/ai/packages/ai/README.md",
+      "title": "AI SDK",
+      "summary": "![hero illustration](./assets/hero.gif) The [AI SDK](https://ai-sdk.dev/docs) is a TypeScript toolkit designed to help you build AI-powered applications using popular frameworks like Next.js, React...",
+      "lines": 134,
+      "mtime": 1759095382538
+    },
+    {
+      "path": "external/repo/ai/packages/amazon-bedrock/CHANGELOG.md",
+      "title": "@ai-sdk/amazon-bedrock",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/provider-uti...",
+      "lines": 1459,
+      "mtime": 1759095382716
+    },
+    {
+      "path": "external/repo/ai/packages/amazon-bedrock/README.md",
+      "title": "AI SDK - Amazon Bedrock Provider",
+      "summary": "The **[Amazon Bedrock provider](https://ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the Amazon Bedrock [con...",
+      "lines": 112,
+      "mtime": 1759095382716
+    },
+    {
+      "path": "external/repo/ai/packages/angular/CHANGELOG.md",
+      "title": "@ai-sdk/angular",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [7c3c216] - Updated dependencies [8dac895] - Updated dependencies [e0d1ea9] - Updated dependencies [...",
+      "lines": 888,
+      "mtime": 1759095382733
+    },
+    {
+      "path": "external/repo/ai/packages/angular/README.md",
+      "title": "AI SDK Angular",
+      "summary": "Angular UI components for the [AI SDK v5](https://ai-sdk.dev/docs). The `@ai-sdk/angular` package provides Angular-specific implementations using Angular signals for reactive state management: - **...",
+      "lines": 644,
+      "mtime": 1759095382733
+    },
+    {
+      "path": "external/repo/ai/packages/anthropic/CHANGELOG.md",
+      "title": "@ai-sdk/anthropic",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 1557,
+      "mtime": 1759095382741
+    },
+    {
+      "path": "external/repo/ai/packages/anthropic/README.md",
+      "title": "AI SDK - Anthropic Provider",
+      "summary": "The **[Anthropic provider](https://ai-sdk.dev/providers/ai-sdk-providers/anthropic)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the [Anthropic Messages API](http...",
+      "lines": 36,
+      "mtime": 1759095382741
+    },
+    {
+      "path": "external/repo/ai/packages/assemblyai/CHANGELOG.md",
+      "title": "@ai-sdk/assemblyai",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - 4616b86: chore: up...",
+      "lines": 514,
+      "mtime": 1759095382766
+    },
+    {
+      "path": "external/repo/ai/packages/assemblyai/README.md",
+      "title": "AI SDK - AssemblyAI Provider",
+      "summary": "The **[AssemblyAI provider](https://ai-sdk.dev/providers/ai-sdk-providers/assemblyai)** for the [AI SDK](https://ai-sdk.dev/docs) contains transcription model support for the AssemblyAI transcripti...",
+      "lines": 39,
+      "mtime": 1759095382766
+    },
+    {
+      "path": "external/repo/ai/packages/azure/CHANGELOG.md",
+      "title": "@ai-sdk/azure",
+      "summary": "- 77f2b20: enables code_interpreter and file_search capabilities in the Azure provider through the Responses API - 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-se...",
+      "lines": 2079,
+      "mtime": 1759095382774
+    },
+    {
+      "path": "external/repo/ai/packages/azure/README.md",
+      "title": "AI SDK - Azure OpenAI Provider",
+      "summary": "The **[Azure provider](https://ai-sdk.dev/providers/ai-sdk-providers/azure)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the Azure OpenAI API. The Azure provider ...",
+      "lines": 36,
+      "mtime": 1759095382774
+    },
+    {
+      "path": "external/repo/ai/packages/baseten/CHANGELOG.md",
+      "title": "@ai-sdk/baseten",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/openai-compatible@1.1.0-beta.5 - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 58,
+      "mtime": 1759095382781
+    },
+    {
+      "path": "external/repo/ai/packages/baseten/README.md",
+      "title": "AI SDK - Baseten Provider",
+      "summary": "The **[Baseten provider](https://ai-sdk.dev/providers/ai-sdk-providers/baseten)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model and embedding model support for the [Baseten](htt...",
+      "lines": 36,
+      "mtime": 1759095382781
+    },
+    {
+      "path": "external/repo/ai/packages/cerebras/CHANGELOG.md",
+      "title": "@ai-sdk/cerebras",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/openai-compatible@1.1.0-beta.5 - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 1046,
+      "mtime": 1759095382802
+    },
+    {
+      "path": "external/repo/ai/packages/cerebras/README.md",
+      "title": "AI SDK - Cerebras Provider",
+      "summary": "The **Cerebras provider** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for [Cerebras](https://cerebras.ai), offering high-speed AI model inference powered by Cerebras W...",
+      "lines": 61,
+      "mtime": 1759095382802
+    },
+    {
+      "path": "external/repo/ai/packages/codemod/CHANGELOG.md",
+      "title": "@ai-sdk/codemod",
+      "summary": "- 740d4bf: feat(codemod): add usechat input state transformation for v5 - 437ab50: feat(codemod): add usechat api to transport transformation - 9b4457c: feat(codemod): add tool invocations migratio...",
+      "lines": 317,
+      "mtime": 1759095382810
+    },
+    {
+      "path": "external/repo/ai/packages/codemod/README.md",
+      "title": "AI SDK Codemods",
+      "summary": "The AI SDK provides automated code transformations (codemods) to help upgrade your codebase when features are deprecated, removed, or changed between versions. Codemods are transformations that run...",
+      "lines": 245,
+      "mtime": 1759095382810
+    },
+    {
+      "path": "external/repo/ai/packages/cohere/CHANGELOG.md",
+      "title": "@ai-sdk/cohere",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 1227,
+      "mtime": 1759095382920
+    },
+    {
+      "path": "external/repo/ai/packages/cohere/README.md",
+      "title": "AI SDK - Cohere Provider",
+      "summary": "The **[Cohere provider](https://ai-sdk.dev/providers/ai-sdk-providers/cohere)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the Cohere API. The Cohere provider is ...",
+      "lines": 36,
+      "mtime": 1759095382921
+    },
+    {
+      "path": "external/repo/ai/packages/deepgram/CHANGELOG.md",
+      "title": "@ai-sdk/deepgram",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - 4616b86: chore: up...",
+      "lines": 546,
+      "mtime": 1759095382934
+    },
+    {
+      "path": "external/repo/ai/packages/deepgram/README.md",
+      "title": "AI SDK - Deepgram Provider",
+      "summary": "The **[Deepgram provider](https://ai-sdk.dev/providers/ai-sdk-providers/deepgram)** for the [AI SDK](https://ai-sdk.dev/docs) contains transcription model support for the Deepgram transcription API...",
+      "lines": 39,
+      "mtime": 1759095382935
+    },
+    {
+      "path": "external/repo/ai/packages/deepinfra/CHANGELOG.md",
+      "title": "@ai-sdk/deepinfra",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/openai-compa...",
+      "lines": 1189,
+      "mtime": 1759095382946
+    },
+    {
+      "path": "external/repo/ai/packages/deepinfra/README.md",
+      "title": "AI SDK - DeepInfra Provider",
+      "summary": "The **[DeepInfra provider](https://ai-sdk.dev/providers/ai-sdk-providers/deepinfra)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the DeepInfra API, giving you acc...",
+      "lines": 37,
+      "mtime": 1759095382946
+    },
+    {
+      "path": "external/repo/ai/packages/deepseek/CHANGELOG.md",
+      "title": "@ai-sdk/deepseek",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/openai-compatible@1.1.0-beta.5 - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 1072,
+      "mtime": 1759095382961
+    },
+    {
+      "path": "external/repo/ai/packages/deepseek/README.md",
+      "title": "AI SDK - DeepSeek Provider",
+      "summary": "The **[DeepSeek provider](https://ai-sdk.dev/providers/ai-sdk-providers/deepseek)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the [DeepSeek](https://www.deepseek...",
+      "lines": 36,
+      "mtime": 1759095382961
+    },
+    {
+      "path": "external/repo/ai/packages/elevenlabs/CHANGELOG.md",
+      "title": "@ai-sdk/elevenlabs",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - 4616b86: chore: up...",
+      "lines": 566,
+      "mtime": 1759095382970
+    },
+    {
+      "path": "external/repo/ai/packages/elevenlabs/README.md",
+      "title": "AI SDK - ElevenLabs Provider",
+      "summary": "The **[ElevenLabs provider](https://ai-sdk.dev/providers/ai-sdk-providers/elevenlabs)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the ElevenLabs chat and complet...",
+      "lines": 39,
+      "mtime": 1759095382970
+    },
+    {
+      "path": "external/repo/ai/packages/fal/CHANGELOG.md",
+      "title": "@ai-sdk/fal",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - 4616b86: chore: up...",
+      "lines": 874,
+      "mtime": 1759095382981
+    },
+    {
+      "path": "external/repo/ai/packages/fal/README.md",
+      "title": "AI SDK - fal Provider",
+      "summary": "The **[fal provider](https://ai-sdk.dev/providers/ai-sdk-providers/fal)** for the [AI SDK](https://ai-sdk.dev/docs) contains image model support for the [fal.ai API](https://fal.ai/). The fal provi...",
+      "lines": 57,
+      "mtime": 1759095382983
+    },
+    {
+      "path": "external/repo/ai/packages/fireworks/CHANGELOG.md",
+      "title": "@ai-sdk/fireworks",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/openai-compa...",
+      "lines": 1224,
+      "mtime": 1759095382996
+    },
+    {
+      "path": "external/repo/ai/packages/fireworks/README.md",
+      "title": "AI SDK - Fireworks Provider",
+      "summary": "The **[Fireworks provider](https://ai-sdk.dev/providers/ai-sdk-providers/fireworks)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model and image model support for the [Fireworks](h...",
+      "lines": 52,
+      "mtime": 1759095382997
+    },
+    {
+      "path": "external/repo/ai/packages/gateway/CHANGELOG.md",
+      "title": "@ai-sdk/gateway",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - c823faf: feat(provider/gateway): Add new Gemini preview m...",
+      "lines": 624,
+      "mtime": 1759095383008
+    },
+    {
+      "path": "external/repo/ai/packages/gateway/README.md",
+      "title": "AI SDK - Gateway Provider",
+      "summary": "The Gateway provider for the [AI SDK](https://ai-sdk.dev/docs) allows the use of a wide variety of AI models and providers. The Gateway provider is available in the `@ai-sdk/gateway` module. You ca...",
+      "lines": 37,
+      "mtime": 1759095383009
+    },
+    {
+      "path": "external/repo/ai/packages/gladia/CHANGELOG.md",
+      "title": "@ai-sdk/gladia",
+      "summary": "- 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provider@2.1.0-beta.3 - 4616b86: chore: up...",
+      "lines": 510,
+      "mtime": 1759095383027
+    },
+    {
+      "path": "external/repo/ai/packages/gladia/README.md",
+      "title": "AI SDK - Gladia Provider",
+      "summary": "The **[Gladia provider](https://ai-sdk.dev/providers/ai-sdk-providers/assemblyai)** for the [AI SDK](https://ai-sdk.dev/docs) contains transcription model support for the Gladia transcription API. ...",
+      "lines": 39,
+      "mtime": 1759095383028
+    },
+    {
+      "path": "external/repo/ai/packages/google-vertex/CHANGELOG.md",
+      "title": "@ai-sdk/google-vertex",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - Updated dependencies [10c1322] - @ai-sdk/provider-uti...",
+      "lines": 2146,
+      "mtime": 1759095383037
+    },
+    {
+      "path": "external/repo/ai/packages/google-vertex/README.md",
+      "title": "AI SDK - Google Vertex AI Provider",
+      "summary": "The **[Google Vertex provider](https://ai-sdk.dev/providers/ai-sdk-providers/google-vertex)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the [Google Vertex AI](ht...",
+      "lines": 222,
+      "mtime": 1759095383039
+    },
+    {
+      "path": "external/repo/ai/packages/google/CHANGELOG.md",
+      "title": "@ai-sdk/google",
+      "summary": "- 8dac895: feat: `LanguageModelV3` - 10c1322: fix: moved dependency `@ai-sdk/test-server` to devDependencies - Updated dependencies [8dac895] - @ai-sdk/provider-utils@3.1.0-beta.5 - @ai-sdk/provide...",
+      "lines": 1726,
+      "mtime": 1759095383064
+    },
+    {
+      "path": "external/repo/ai/packages/google/README.md",
+      "title": "AI SDK - Google Generative AI Provider",
+      "summary": "The **[Google Generative AI provider](https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the [Google...",
+      "lines": 36,
+      "mtime": 1759095383064
+    }
+  ]
+}

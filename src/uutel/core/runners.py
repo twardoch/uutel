@@ -1,5 +1,10 @@
 # this_file: src/uutel/core/runners.py
-"""Subprocess execution utilities with streaming support."""
+"""Subprocess execution utilities.
+
+This module handles running CLI tools (like `claude` or `gemini`) in the background.
+It provides standard synchronous execution, streaming output (for real-time typing effects), 
+and async support.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,15 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True)
 class SubprocessResult:
-    """Container for subprocess execution metadata."""
+    """What happened when we ran the command.
+
+    Attributes:
+        command: The exact command array we tried to execute.
+        returncode: The exit code (0 usually means success).
+        stdout: The raw standard output text.
+        stderr: The raw standard error text (where CLIs usually complain).
+        duration_seconds: How long the execution took.
+    """
 
     command: tuple[str, ...]
     returncode: int
@@ -28,7 +41,11 @@ class SubprocessResult:
 
 
 def _build_env(extra_env: Mapping[str, str] | None) -> dict[str, str]:
-    """Merge provided environment variables with process defaults."""
+    """Merge extra environment variables with the system environment.
+
+    Useful when passing temporary auth tokens or config flags to a CLI tool 
+    without polluting the global environment.
+    """
 
     merged = os.environ.copy()
     if extra_env:
@@ -45,10 +62,22 @@ def run_subprocess(
     timeout: float | None = None,
     encoding: str = "utf-8",
 ) -> SubprocessResult:
-    """Run a subprocess and return captured output.
+    """Fire off a command and wait for the final text.
+
+    Args:
+        command: The command array (e.g., ["claude", "login"]).
+        check: If True, raise an error if the exit code isn't 0.
+        cwd: Where to run the command.
+        env: Extra environment variables.
+        timeout: Stop waiting after this many seconds.
+        encoding: How to decode the raw bytes (usually utf-8).
 
     Raises:
-        UUTELError: if the command exits with non-zero status and ``check`` is True
+        UUTELError: If the command isn't found or times out.
+        subprocess.CalledProcessError: If check=True and the command fails.
+        
+    Returns:
+        A SubprocessResult with the exit code and outputs.
     """
 
     start = perf_counter()

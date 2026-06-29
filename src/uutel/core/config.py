@@ -1,7 +1,8 @@
 # this_file: src/uutel/core/config.py
-"""UUTEL configuration management - simplified core functionality.
+"""UUTEL configuration management.
 
-This module provides basic configuration file support for UUTEL CLI.
+We keep settings in a basic TOML file (`~/.uutel.toml` by default).
+This module handles loading, saving, and merging those settings with command-line arguments.
 """
 
 from __future__ import annotations
@@ -23,7 +24,11 @@ logger = get_logger(__name__)
 
 @dataclass
 class UUTELConfig:
-    """Basic UUTEL configuration class."""
+    """The raw configuration for a UUTEL run.
+
+    Loaded from your TOML file and combined with any flags you pass on the command line.
+    Everything is optional.
+    """
 
     engine: str | None = None
     max_tokens: int | None = None
@@ -33,7 +38,14 @@ class UUTELConfig:
     verbose: bool | None = None
 
     def merge_with_args(self, **kwargs) -> dict[str, Any]:
-        """Merge configuration with command-line arguments."""
+        """Combine loaded config with explicit CLI flags.
+
+        Args:
+            kwargs: Any flags provided via CLI (e.g., engine="uutel-claude/claude-sonnet-4")
+
+        Returns:
+            A clean dictionary of the final configuration, ready for the LLM runner.
+        """
         result = {}
 
         # Start with config values
@@ -64,7 +76,12 @@ def get_config_path() -> Path:
 
 
 def load_config() -> UUTELConfig:
-    """Load configuration from file or return defaults."""
+    """Read ~/.uutel.toml and return a config object.
+
+    We tolerate a lot of nonsense here (booleans passed as strings, floats 
+    passed as ints, etc.) and try to coerce them into what the model expects.
+    If the file is broken, we log a warning and return defaults.
+    """
     config_path = get_config_path()
 
     if not config_path.exists():
@@ -200,7 +217,10 @@ def load_config() -> UUTELConfig:
 
 
 def save_config(config: UUTELConfig, config_path: str | None = None) -> None:
-    """Save configuration to file."""
+    """Write the configuration back to a TOML file.
+
+    Useful if you want to snapshot the current CLI settings into a reusable profile.
+    """
     if config_path is None:
         config_path = get_config_path()
     else:
@@ -237,7 +257,13 @@ def save_config(config: UUTELConfig, config_path: str | None = None) -> None:
 
 
 def validate_config(config: UUTELConfig) -> list[str]:
-    """Basic configuration validation."""
+    """Check if the configuration makes sense before we hit the network.
+
+    We catch bad engine names, negative token counts, and weird temperatures here.
+    
+    Returns:
+        A list of error strings. If it's empty, you're good to go.
+    """
     errors = []
 
     if config.engine:

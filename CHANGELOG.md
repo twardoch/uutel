@@ -4,6 +4,22 @@ this_file: CHANGELOG.md
 
 # CHANGELOG
 
+### Fixed - Syntax error and README sync (2026-06-29)
+- Fixed `SyntaxError: unterminated triple-quoted string literal` in `src/uutel/core/runners.py` (lines 83-85 had an orphaned `Raises:` docstring fragment with an unclosed `"""`).
+- Updated `README.md` quick-start examples to exactly match recorded fixture `live_hint` strings (`"Summarise Gemini API"`, `"Deployment checklist"`).
+- Updated `README.md` config snippet to match `create_default_config()` output (adds `# UUTEL Configuration` header, uses `"my-custom-llm/codex-large"` engine placeholder).
+- Tests: `uvx hatch test` → 583 passed, 2 skipped, 0 failed (8.89s wall-clock).
+
+### QA - Regression Sweep (2025-10-07 - report cycle #8)
+- /report: Reviewed PLAN.md and TODO.md; worktree still contains in-flight provider/doc harmonisation edits pending follow-up, none removed during this cycle.
+- Tests: `uvx hatch test` -> 580 passed, 2 skipped (19.37s runtime; harness terminated command after 26.5s despite pytest success).
+
+### Fixed - CLI Recorded Metadata Decoupling (2025-10-07)
+- Introduced `uutel.docs.recorded_examples` to publish recorded fixture metadata for CLI/help surfaces without importing from `examples`.
+- `uutel.__main__.py` now relies on the shared metadata module, eliminating the runtime dependency on `examples.basic_usage` that broke installed entry points.
+- `examples/basic_usage.py` hydrates fixture paths from the shared metadata so the walkthrough continues to replay recorded responses while remaining self-contained.
+- Tests: `uvx hatch test tests/test_cli.py`, `uvx hatch test tests/test_documentation_aliases.py`, `uvx hatch test tests/test_examples.py`, `uvx hatch test tests/test_fixture_integrity.py`, full `uvx hatch test` -> 580 passed, 2 skipped (24.59s runtime).
+
 ### Hardened - Alias Edge-Case Handling (2025-10-07)
 - `_normalise_engine_alias` now strips stray punctuation/underscores so aliases like `--codex--` and `__gemini__` resolve to their canonical engines across CLI flows.
 - `validate_engine` rejects cross-provider nested shorthands (e.g. `uutel/claude/gemini-2.5-pro`) with descriptive guidance and emits deterministically sorted engine/alias listings for easier support triage.

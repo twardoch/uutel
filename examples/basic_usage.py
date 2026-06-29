@@ -18,45 +18,33 @@ from uutel import (
     validate_model_name,
 )
 from uutel.core.logging_config import get_logger
+from uutel.docs import recorded_examples
 
 logger = get_logger(__name__)
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "tests" / "data" / "providers"
 
-RECORDED_FIXTURES: list[dict[str, Any]] = [
-    {
-        "label": "Codex (GPT-4o)",
-        "key": "codex",
-        "engine": "codex",
-        "prompt": "Write a sorter",
-        "path": FIXTURE_ROOT / "codex" / "simple_completion.json",
-        "live_hint": 'uutel complete --prompt "Write a sorter" --engine codex',
-    },
-    {
-        "label": "Claude Code (Sonnet 4)",
-        "key": "claude",
-        "engine": "claude",
-        "prompt": "Say hello",
-        "path": FIXTURE_ROOT / "claude" / "simple_completion.json",
-        "live_hint": 'uutel complete --prompt "Say hello" --engine claude',
-    },
-    {
-        "label": "Gemini CLI (2.5 Pro)",
-        "key": "gemini",
-        "engine": "gemini",
-        "prompt": "Summarise Gemini API",
-        "path": FIXTURE_ROOT / "gemini" / "simple_completion.json",
-        "live_hint": 'uutel complete --prompt "Summarise Gemini API" --engine gemini',
-    },
-    {
-        "label": "Cloud Code (Gemini 2.5 Pro)",
-        "key": "cloud_code",
-        "engine": "cloud",
-        "prompt": "Deployment checklist",
-        "path": FIXTURE_ROOT / "cloud_code" / "simple_completion.json",
-        "live_hint": 'uutel complete --prompt "Deployment checklist" --engine cloud',
-    },
-]
+
+def _hydrate_recorded_fixtures() -> list[dict[str, Any]]:
+    """Return recorded fixtures with local filesystem paths resolved."""
+
+    hydrated: list[dict[str, Any]] = []
+    for fixture in recorded_examples.RECORDED_FIXTURES:
+        hydrated_entry = dict(fixture)
+        relative_path = hydrated_entry.get("fixture_path")
+        if not relative_path:
+            raise ValueError("Recorded fixture is missing 'fixture_path' metadata")
+        absolute_path = FIXTURE_ROOT / relative_path
+        if not absolute_path.is_file():
+            raise FileNotFoundError(
+                f"Recorded fixture '{relative_path}' not found under {FIXTURE_ROOT}"
+            )
+        hydrated_entry["path"] = absolute_path
+        hydrated.append(hydrated_entry)
+    return hydrated
+
+
+RECORDED_FIXTURES: list[dict[str, Any]] = _hydrate_recorded_fixtures()
 
 
 def truncate(text: str, limit: int = 120) -> str:

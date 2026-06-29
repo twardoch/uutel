@@ -21,6 +21,7 @@ from examples.basic_usage import (
     extract_recorded_text,
     truncate,
 )
+from uutel.docs import recorded_examples
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -156,6 +157,25 @@ def test_basic_usage_example_replays_recorded_outputs():
 
     for snippet in snippets:
         assert snippet in output
+
+
+def test_hydrate_recorded_fixtures_when_path_missing_then_raises_file_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hydration should fail loudly when recorded fixture files are absent."""
+
+    patched_fixtures = [dict(recorded_examples.RECORDED_FIXTURES[0])]
+    patched_fixtures[0]["fixture_path"] = "codex/missing-fixture.json"
+    monkeypatch.setattr(
+        recorded_examples, "RECORDED_FIXTURES", patched_fixtures, raising=False
+    )
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        basic_usage._hydrate_recorded_fixtures()
+
+    assert "codex/missing-fixture.json" in str(excinfo.value), (
+        "Error message should include the missing fixture path"
+    )
 
 
 def test_basic_usage_example_live_mode_uses_stub_directory(tmp_path):

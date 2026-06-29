@@ -18,11 +18,10 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 import tomli_w
-from examples import basic_usage
-
 import uutel.__main__ as cli_module
 from uutel.__main__ import UUTELCLI, _read_gcloud_default_project, main, setup_providers
 from uutel.core.config import UUTELConfig
+from uutel.docs import recorded_examples
 
 
 class TestUUTELCLI:
@@ -110,7 +109,7 @@ class TestUUTELCLI:
         usage_block = captured.out.split("🔐 Provider Requirements:", 1)[0]
 
         missing: list[str] = []
-        for fixture in basic_usage.RECORDED_FIXTURES:
+        for fixture in recorded_examples.RECORDED_FIXTURES:
             hint = fixture["live_hint"]
             expected_line = f"  {hint}"
             if expected_line not in usage_block:
@@ -128,19 +127,19 @@ class TestUUTELCLI:
     ) -> None:
         """Usage block should reflect current RECORDED_FIXTURES without manual updates."""
 
-        patched_fixtures = list(basic_usage.RECORDED_FIXTURES)
+        patched_fixtures = [dict(entry) for entry in recorded_examples.RECORDED_FIXTURES]
         patched_fixtures.append(
             {
                 "label": "Patched Codex",
                 "key": "codex-patched",
                 "engine": "codex",
                 "prompt": "Check sanitisation",
-                "path": patched_fixtures[0]["path"],
+                "fixture_path": patched_fixtures[0]["fixture_path"],
                 "live_hint": 'uutel complete --prompt "Check sanitisation" --engine codex',
             }
         )
         monkeypatch.setattr(
-            basic_usage, "RECORDED_FIXTURES", patched_fixtures, raising=False
+            recorded_examples, "RECORDED_FIXTURES", patched_fixtures, raising=False
         )
 
         self.cli.list_engines()

@@ -12,6 +12,16 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - Recorded examples and diagnostics already reflect live provider behaviour.
 - Remaining gaps sit in the provider adapters themselves: Codex still lacks live HTTP flows, Gemini CLI parity is partial, and Cloud Code needs OAuth-oriented polish.
 
+## Mini Hardening Sprint – Recorded Fixture Integrity (Planned 2025-10-07)
+- **Objective**: Keep CLI usage hints and documentation resilient by ensuring recorded fixture metadata stays in sync with the underlying fixture files and engine aliases.
+- **Tasks**:
+  1. Teach `examples.basic_usage._hydrate_recorded_fixtures` to assert that every `fixture_path` points to an existing file and surface a descriptive guidance error when a path is missing.
+  2. Extend documentation lint tests to confirm each `recorded_examples.RECORDED_FIXTURES` entry references an engine/alias that resolves through `validate_engine`, catching drift between metadata and CLI configuration.
+  3. Add regression coverage that enforces `live_hint` strings include the recorded alias and match the documented command format (`uutel complete --prompt ... --engine <alias>`), preventing future doc/CLI divergence.
+- **Validation**:
+  - Add failing pytest coverage in `tests/test_examples.py` and `tests/test_documentation_aliases.py` before implementation, confirming missing-file and alias/live-hint mismatches raise explicit errors.
+  - Run targeted selections plus full `uvx hatch test`; record outcomes in `WORK.md` and `CHANGELOG.md` alongside the new integrity guardrails.
+
 ## Mini Hardening Sprint – Alias Edge-Case Hardening (Completed 2025-10-07)
 - **Objective**: Close remaining alias reliability gaps so CLI shorthands behave predictably even with messy input while keeping error guidance stable for support triage.
 - **Tasks**:
@@ -48,7 +58,7 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - **Outcome**:
   - Added CLI integration tests covering control-sequence sanitisation for sync and streaming completions; `_safe_output` already satisfied assertions, locking behaviour into the regression suite.
   - Introduced a docstring alias parity test tying `UUTELCLI.__doc__` summary lines to `ENGINE_ALIASES`, ensuring help snapshots fail fast when mappings change.
-  - `list_engines` now renders usage hints from `examples.basic_usage.RECORDED_FIXTURES`, so new recorded transcripts surface automatically without manual CLI updates.
+  - `list_engines` now renders usage hints from `uutel.docs.recorded_examples.RECORDED_FIXTURES`, so new recorded transcripts surface automatically without manual CLI updates.
 - **Validation**:
   - Targeted pytest selections: `uvx hatch test tests/test_cli.py::TestUUTELCLI::test_complete_command_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_complete_command_streaming_filters_control_sequences tests/test_cli.py::TestUUTELCLI::test_list_engines_usage_reflects_runtime_recorded_hints tests/test_cli_help.py::test_cli_docstring_alias_guidance_matches_engine_aliases`.
   - Full regression: `uvx hatch test` → 559 passed, 2 skipped (17.89s runtime; harness timeout at 22.8s post-success). Logged in WORK.md/CHANGELOG.md.
@@ -57,7 +67,7 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - **Objective**: Make alias-driven flows harder to break by accepting nested shorthand inputs, broadcasting all ready-to-run alias hints, and enforcing alias coverage invariants in tests.
 - **Outcome**:
   - `validate_engine` now short-circuits canonical engine inputs and resolves nested `uutel/<alias>/<model>` shorthands via a shared `_resolve_candidate` helper.
-  - `UUTELCLI.list_engines` renders `uutel test --engine <alias>` lines for every primary alias sourced from `RECORDED_FIXTURES`, keeping CLI guidance alias-first without hard-coded lists.
+  - `UUTELCLI.list_engines` renders `uutel test --engine <alias>` lines for every primary alias sourced from the shared recorded fixtures metadata, keeping CLI guidance alias-first without hard-coded lists.
   - Added alias coverage guard ensuring every canonical engine has either a CLI alias or a model shorthand, plus CLI tests locking gemini/cloud test hints.
 - **Validation**:
   - Failing tests captured in `tests/test_cli_validators.py::TestValidateEngine::test_validate_engine_accepts_nested_uutel_model_shorthand` and `tests/test_cli.py::TestUUTELCLI::test_list_engines_command` prior to implementation.
@@ -141,7 +151,7 @@ Deliver production-ready LiteLLM providers for Codex, Gemini CLI, and Google Clo
 - **Objective**: Keep CLI guidance, recorded examples, and README snippets in sync so users always see alias-first commands with accurate provider prerequisites.
 - **Outcome**:
   - Added `tests/test_cli.py::TestUUTELCLI::test_list_engines_provider_requirements_cover_all_entries` to lock the provider guidance block against `PROVIDER_REQUIREMENTS`.
-  - Introduced `test_list_engines_usage_includes_recorded_live_hints` to assert every `examples.basic_usage.RECORDED_FIXTURES` live hint appears in CLI usage output.
+  - Introduced `test_list_engines_usage_includes_recorded_live_hints` to assert every `uutel.docs.recorded_examples.RECORDED_FIXTURES` live hint appears in CLI usage output.
   - Updated README quick usage commands to the recorded live hints and enforced the alignment with `tests/test_documentation_aliases.py::test_readme_quick_usage_includes_recorded_hints`.
 - **Validation**:
   - Targeted pytest selections for the new CLI/documentation tests passed after updating the README; full `uvx hatch test` -> 540 passed, 2 skipped (19.29s runtime).

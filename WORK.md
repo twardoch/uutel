@@ -3,6 +3,11 @@ this_file: WORK.md
 ---
 
 # 2025-10-07 (current iteration)
+- /report: Reviewed PLAN.md/TODO.md, noted worktree still holding provider/doc harmonisation edits, ran `uvx hatch test` -> 580 passed, 2 skipped (19.37s runtime; harness terminated after 26.5s) and logged outcome in CHANGELOG.md.
+- /cleanup: `make clean` purged build/dist artifacts, cache directories, and bytecode remnants post-regression sweep.
+- /work: Recorded fixture integrity sprint — guard hydration against missing files, validate aliases, and enforce live-hint format consistency.
+- Issue #203: moved recorded usage hints into new `uutel.docs.recorded_examples` module, updated CLI to consume shared metadata, and hydrated `examples/basic_usage.py` from the package source so src code no longer imports `examples` while the walkthrough still replays fixtures.
+- Tests: `uvx hatch test tests/test_cli.py` (107 passed), `uvx hatch test tests/test_documentation_aliases.py` (6 passed, 1 skipped), `uvx hatch test tests/test_examples.py` (31 passed), `uvx hatch test tests/test_fixture_integrity.py` (15 passed), full `uvx hatch test` -> 580 passed, 2 skipped (24.59s runtime).
 - /report: Re-read PLAN.md/TODO.md (no open items), inspected git status (provider/doc edits still pending), ran `uvx hatch test` -> 571 passed, 2 skipped (18.53s runtime; command timed out at 25.6s after pytest success), preparing CHANGELOG/TODO sync prior to cleanup.
 - /cleanup: `make clean` removed build/dist artifacts, cache directories, and bytecode left after the regression sweep.
 - Planning: Scheduled alias edge-case hardening sprint (nested shorthand guard, deterministic error guidance, punctuation-trimmed aliases) and seeded TODO.md accordingly.

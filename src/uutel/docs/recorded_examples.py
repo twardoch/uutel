@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-from typing import List, MutableMapping
+from typing import List
+from collections.abc import MutableMapping
 
 RecordedFixture = MutableMapping[str, str]
 
-RECORDED_FIXTURES: List[RecordedFixture] = [
+RECORDED_FIXTURES: list[RecordedFixture] = [
     {
         "label": "Codex (GPT-4o)",
         "key": "codex",
